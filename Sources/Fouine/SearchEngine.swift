@@ -98,6 +98,8 @@ struct SearchOptions {
     var caseSensitive = false
     /// Dossier de recherche sans barre finale ; `nil` = tout le disque.
     var scope: String?
+    /// Limite au volume de démarrage : tout sauf ce qui est monté dans /Volumes.
+    var bootVolumeOnly = false
     var type = TypeFilter.any
     var date = DateFilter.any
     var size = SizeFilter.any
@@ -192,6 +194,7 @@ private func filterSQL(_ o: SearchOptions, texts: inout [String]) -> String {
     if !o.includePackages {
         for ext in packageExtensions { sql += " AND d.path NOT LIKE '%.\(ext)/%'" }
     }
+    if o.bootVolumeOnly { sql += " AND NOT (d.path >= '/Volumes/' AND d.path < '/Volumes0')" }
     if let scope = o.scope {
         sql += " AND d.path >= ? AND d.path < ?"
         texts.append(scope + "/")
@@ -209,7 +212,9 @@ final class CancelToken {
 
 /// Lectures de l'index : noms (instantané, via FTS trigramme) et contenus (lecture des fichiers à la demande).
 final class SearchEngine {
-    static let limit = 100_000
+    /// Garde-fou mémoire uniquement : en pratique tous les résultats sont affichés.
+    static let limit = 2_000_000
+    static let shortLimit = 100_000
 
     private let nameDB: Database
     private let contentDB: Database
@@ -255,7 +260,7 @@ final class SearchEngine {
         let tokens = o.tokens
         guard !tokens.isEmpty else { return [] }
 
-        var sql = "SELECT f.id, d.path, f.name, f.size, f.mtime, f.is_dir FROM "
+        var sql = "SELECT f.id, d.path, f.name, f.size, f.mtime, f.is_dir, d.id FROM "
         var texts: [String] = []
         let glue = o.op == .any ? " OR " : " AND "
 
@@ -287,14 +292,27 @@ final class SearchEngine {
             texts.append(contentsOf: tokens.map { "%" + likeEscape($0) + "%" })
         }
         sql += filterSQL(o, texts: &texts)
-        sql += " LIMIT \(SearchEngine.limit)"
+        // Un terme d'une ou deux lettres correspond à presque tout le disque : on borne plus bas.
+        let short = !o.op.isPattern && tokens.contains { $0.unicodeScalars.count < 3 }
+        sql += " LIMIT \(short ? SearchEngine.shortLimit : SearchEngine.limit)"
 
         guard let stmt = try? nameDB.prepare(sql) else { return [] }
         for (i, t) in texts.enumerated() { stmt.bind(Int32(i + 1), t) }
+        // Une seule chaîne par dossier, partagée par tous ses résultats : la mémoire reste
+        // raisonnable même avec des centaines de milliers de lignes.
+        var dirs: [Int64: String] = [:]
         var hits: [FileHit] = []
         while stmt.step() {
+            let dirID = stmt.int(6)
+            let dir: String
+            if let known = dirs[dirID] {
+                dir = known
+            } else {
+                dir = stmt.string(1)
+                dirs[dirID] = dir
+            }
             hits.append(FileHit(
-                id: stmt.int(0), dir: stmt.string(1), name: stmt.string(2), size: stmt.int(3),
+                id: stmt.int(0), dir: dir, name: stmt.string(2), size: stmt.int(3),
                 mtime: Date(timeIntervalSince1970: TimeInterval(stmt.int(4))), isDir: stmt.int(5) != 0))
         }
         return hits

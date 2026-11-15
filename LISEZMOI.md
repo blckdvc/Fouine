@@ -63,5 +63,6 @@ aucune mise à jour ne peut être publiée pour les copies déjà installées.
 | `Watcher.swift` | Flux FSEvents |
 | `SearchEngine.swift` | Recherche par nom et par contenu |
 | `SearchModel.swift`, `ContentView.swift` | Interface SwiftUI |
+| `ResultsTable.swift` | Tableau natif des résultats (fluide avec des centaines de milliers de lignes) |
 | `FouineApp.swift` | Fenêtre, menus, À propos, Sparkle |
 | `Localisation.swift` | Textes dans la langue du système |

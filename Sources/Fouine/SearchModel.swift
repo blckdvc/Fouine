@@ -10,6 +10,7 @@ final class SearchModel: ObservableObject {
     @Published var op = SearchOperator.all { didSet { optionsChanged() } }
     @Published var caseSensitive = false
     @Published var scope: String? { didSet { optionsChanged() } }
+    @Published var bootVolumeOnly = false { didSet { optionsChanged() } }
     @Published var typeFilter = TypeFilter.any { didSet { optionsChanged() } }
     @Published var dateFilter = DateFilter.any { didSet { optionsChanged() } }
     @Published var sizeFilter = SizeFilter.any { didSet { optionsChanged() } }
@@ -17,18 +18,26 @@ final class SearchModel: ObservableObject {
     @Published var includePackages = false { didSet { optionsChanged() } }
 
     // Résultats
-    @Published var results: [FileHit] = []
-    @Published var sortOrder = [KeyPathComparator(\FileHit.name, comparator: .localizedStandard)] {
-        didSet { sortResults() }
-    }
+    /// Liste triée affichée. `resultsVersion` change avec elle, pour que le tableau
+    /// sache qu'il doit se recharger sans comparer des centaines de milliers de lignes.
+    @Published private(set) var results: [FileHit] = []
+    @Published private(set) var resultsVersion = 0
     /// Regroupe les dossiers avant les fichiers au lieu de les mélanger.
-    @Published var foldersFirst = true { didSet { sortResults() } }
+    @Published var foldersFirst = true { didSet { present(unsorted) } }
     /// Termes surlignés dans les noms (ceux de la dernière recherche par nom).
     @Published var highlightTokens: [String] = []
     @Published var searching = false
     @Published var searchInfo = ""
     @Published var indexState = IndexState.waiting
     @Published var needsFullDiskAccess = false
+    @Published private(set) var volumes: [Volume] = []
+
+    struct Volume: Identifiable {
+        let name: String
+        /// `nil` pour le volume de démarrage.
+        let path: String?
+        var id: String { path ?? "/" }
+    }
 
     private let service = IndexService()
     private var engine: SearchEngine?
@@ -37,10 +46,24 @@ final class SearchModel: ObservableObject {
     private var contentToken: CancelToken?
     private var accessTimer: Timer?
 
+    // Tri : toujours hors du fil principal, pour ne jamais figer l'interface.
+    private var unsorted: [FileHit] = []
+    private var sortKey = SortKey.name
+    private var ascending = true
+    private var sortGeneration = 0
+    private let sortQueue = DispatchQueue(label: "fouine.sort", qos: .userInitiated)
+
     init() {
         Database.discardIfOutdated(path: IndexService.dbPath)
         service.onState = { [weak self] state in
             MainActor.assumeIsolated { self?.indexState = state }
+        }
+        refreshVolumes()
+        let center = NSWorkspace.shared.notificationCenter
+        for name in [NSWorkspace.didMountNotification, NSWorkspace.didUnmountNotification] {
+            center.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
+                MainActor.assumeIsolated { self?.refreshVolumes() }
+            }
         }
         if SearchModel.hasFullDiskAccess {
             startIndexing()
@@ -82,8 +105,8 @@ final class SearchModel: ObservableObject {
 
     var options: SearchOptions {
         SearchOptions(text: query, target: target, kind: kind, op: op, caseSensitive: caseSensitive,
-                      scope: scope, type: typeFilter, date: dateFilter, size: sizeFilter,
-                      includeHidden: includeHidden, includePackages: includePackages)
+                      scope: scope, bootVolumeOnly: bootVolumeOnly, type: typeFilter, date: dateFilter,
+                      size: sizeFilter, includeHidden: includeHidden, includePackages: includePackages)
     }
 
     private func loadEngine() -> SearchEngine? {
@@ -99,7 +122,7 @@ final class SearchModel: ObservableObject {
         debounce?.cancel()
         let work = DispatchWorkItem { [weak self] in self?.runNameSearch() }
         debounce = work
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15, execute: work)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2, execute: work)
     }
 
     private func targetChanged() {
@@ -108,8 +131,8 @@ final class SearchModel: ObservableObject {
             optionsChanged()
         } else {
             generation += 1
-            results = []
             highlightTokens = []
+            present([])
             searchInfo = query.isEmpty ? "" : L("Appuyez sur Retour pour chercher dans les contenus")
         }
     }
@@ -124,7 +147,7 @@ final class SearchModel: ObservableObject {
         let gen = generation
         let o = options
         guard !o.tokens.isEmpty, let engine = loadEngine() else {
-            results = []
+            present([])
             searchInfo = ""
             searching = false
             return
@@ -134,11 +157,11 @@ final class SearchModel: ObservableObject {
             MainActor.assumeIsolated {
                 guard let self, gen == self.generation else { return }
                 self.highlightTokens = o.op.isPattern ? [] : o.tokens
-                self.results = hits
-                self.sortResults()
+                self.present(hits)
                 self.searching = false
-                self.searchInfo = hits.count >= SearchEngine.limit
-                    ? L("%@ premiers résultats — affinez la recherche", SearchEngine.limit.formatted())
+                let capped = hits.count == SearchEngine.limit || hits.count == SearchEngine.shortLimit
+                self.searchInfo = capped
+                    ? L("%@ premiers résultats — affinez la recherche", hits.count.formatted())
                     : resultLabel(hits.count)
             }
         }
@@ -149,8 +172,8 @@ final class SearchModel: ObservableObject {
         generation += 1
         let gen = generation
         let o = options
-        results = []
         highlightTokens = []
+        present([])
         guard !o.tokens.isEmpty, let engine = loadEngine() else {
             searchInfo = ""
             return
@@ -162,19 +185,16 @@ final class SearchModel: ObservableObject {
         engine.searchContents(o, token: token, onProgress: { [weak self] hits, scanned in
             MainActor.assumeIsolated {
                 guard let self, gen == self.generation else { return }
-                if !hits.isEmpty {
-                    self.results.append(contentsOf: hits)
-                    self.sortResults()
-                }
+                if !hits.isEmpty { self.present(self.unsorted + hits) }
                 self.searchInfo = L("%@ trouvés — %@ fichiers lus…",
-                                    self.results.count.formatted(), scanned.formatted())
+                                    self.unsorted.count.formatted(), scanned.formatted())
             }
         }, onDone: { [weak self] in
             MainActor.assumeIsolated {
                 guard let self, gen == self.generation else { return }
                 self.searching = false
                 self.contentToken = nil
-                let n = self.results.count
+                let n = self.unsorted.count
                 self.searchInfo = n >= SearchEngine.limit
                     ? L("Arrêt à %@ résultats — affinez la recherche", n.formatted())
                     : resultLabel(n)
@@ -188,31 +208,90 @@ final class SearchModel: ObservableObject {
         contentToken = nil
         generation += 1
         searching = false
-        searchInfo = L("Recherche interrompue — %@", resultLabel(results.count))
+        searchInfo = L("Recherche interrompue — %@", resultLabel(unsorted.count))
     }
 
     var canCancel: Bool { contentToken != nil }
 
-    private func sortResults() {
-        let order = sortOrder
-        let grouped = foldersFirst
-        results.sort { a, b in
-            if grouped, a.isDir != b.isDir { return a.isDir }
-            for comparator in order {
-                switch comparator.compare(a, b) {
-                case .orderedAscending: return true
-                case .orderedDescending: return false
-                case .orderedSame: continue
+    // MARK: Tri
+
+    func setSort(_ key: SortKey, ascending: Bool) {
+        sortKey = key
+        self.ascending = ascending
+        present(unsorted)
+    }
+
+    /// Trie `hits` en arrière-plan puis les affiche ; une demande plus récente annule celle-ci.
+    private func present(_ hits: [FileHit]) {
+        unsorted = hits
+        sortGeneration += 1
+        if hits.isEmpty {
+            results = []
+            resultsVersion += 1
+            return
+        }
+        let gen = sortGeneration, key = sortKey, asc = ascending, grouped = foldersFirst
+        sortQueue.async { [weak self] in
+            let sorted = SearchModel.sorted(hits, key: key, ascending: asc, foldersFirst: grouped)
+            DispatchQueue.main.async {
+                MainActor.assumeIsolated {
+                    guard let self, gen == self.sortGeneration else { return }
+                    self.results = sorted
+                    self.resultsVersion += 1
                 }
             }
-            return false
+        }
+    }
+
+    /// Tri par clés précalculées : une comparaison de chaînes localisée par paire serait
+    /// des dizaines de fois plus lente sur de grandes listes.
+    nonisolated static func sorted(_ hits: [FileHit], key: SortKey, ascending: Bool,
+                                   foldersFirst: Bool) -> [FileHit] {
+        func order<K: Comparable>(_ keys: [K]) -> [FileHit] {
+            var indices = Array(hits.indices)
+            indices.sort { a, b in
+                if foldersFirst, hits[a].isDir != hits[b].isDir { return hits[a].isDir }
+                if keys[a] == keys[b] { return a < b }
+                return ascending ? keys[a] < keys[b] : keys[a] > keys[b]
+            }
+            return indices.map { hits[$0] }
+        }
+        let fold: (String) -> String = {
+            $0.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: nil)
+        }
+        switch key {
+        case .name: return order(hits.map { fold($0.name) })
+        case .dir: return order(hits.map { fold($0.dir) })
+        case .kind: return order(hits.map(\.kind))
+        case .size: return order(hits.map(\.size))
+        case .mtime: return order(hits.map(\.mtime))
         }
     }
 
     // MARK: Périmètre
 
+    /// Volumes locaux montés (les volumes réseau ne sont pas indexés).
+    private func refreshVolumes() {
+        let keys: [URLResourceKey] = [.volumeNameKey, .volumeIsLocalKey]
+        let urls = FileManager.default.mountedVolumeURLs(
+            includingResourceValuesForKeys: keys, options: [.skipHiddenVolumes]) ?? []
+        volumes = urls.compactMap { url in
+            guard let values = try? url.resourceValues(forKeys: Set(keys)),
+                  values.volumeIsLocal == true else { return nil }
+            let path = norm(url.path)
+            return Volume(name: values.volumeName ?? url.lastPathComponent, path: path == "/" ? nil : path)
+        }
+    }
+
+    /// `path == nil` avec `bootOnly` désigne le volume de démarrage ; sans, tout le disque.
+    func setScope(_ path: String?, bootOnly: Bool = false) {
+        bootVolumeOnly = bootOnly
+        scope = path
+    }
+
     var scopeLabel: String {
-        guard let scope else { return L("Tout le disque") }
+        if bootVolumeOnly, scope == nil { return volumes.first { $0.path == nil }?.name ?? "/" }
+        guard let scope else { return L("Tous les volumes") }
         return scope == NSHomeDirectory() ? L("Dossier personnel") : (scope as NSString).lastPathComponent
     }
 
@@ -222,41 +301,39 @@ final class SearchModel: ObservableObject {
         panel.canChooseFiles = false
         panel.prompt = L("Chercher ici")
         if panel.runModal() == .OK, let url = panel.url {
-            scope = norm(url.path)
+            setScope(norm(url.path))
         }
     }
 
     // MARK: Actions sur les résultats
 
-    func hits(_ ids: Set<FileHit.ID>) -> [FileHit] {
-        results.filter { ids.contains($0.id) }
-    }
-
-    func open(_ ids: Set<FileHit.ID>) {
-        for hit in hits(ids).prefix(20) {
+    func open(_ hits: [FileHit]) {
+        for hit in hits.prefix(20) {
             NSWorkspace.shared.open(URL(fileURLWithPath: hit.path))
         }
     }
 
-    func reveal(_ ids: Set<FileHit.ID>) {
-        let urls = hits(ids).map { URL(fileURLWithPath: $0.path) }
+    func reveal(_ hits: [FileHit]) {
+        let urls = hits.map { URL(fileURLWithPath: $0.path) }
         if !urls.isEmpty { NSWorkspace.shared.activateFileViewerSelecting(urls) }
     }
 
-    func copyPaths(_ ids: Set<FileHit.ID>) {
-        let text = hits(ids).map(\.path).joined(separator: "\n")
+    func copyPaths(_ hits: [FileHit]) {
         NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(text, forType: .string)
+        NSPasteboard.general.setString(hits.map(\.path).joined(separator: "\n"), forType: .string)
     }
 
     /// Met à la corbeille (récupérable) et retire de la liste ce qui a bien été déplacé.
-    func trash(_ ids: Set<FileHit.ID>) {
+    func trash(_ hits: [FileHit]) {
         var gone = Set<FileHit.ID>()
-        for hit in hits(ids) {
+        for hit in hits {
             if (try? FileManager.default.trashItem(at: URL(fileURLWithPath: hit.path), resultingItemURL: nil)) != nil {
                 gone.insert(hit.id)
             }
         }
+        guard !gone.isEmpty else { return }
+        unsorted.removeAll { gone.contains($0.id) }
         results.removeAll { gone.contains($0.id) }
+        resultsVersion += 1
     }
 }

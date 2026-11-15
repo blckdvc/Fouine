@@ -6,7 +6,7 @@ import SwiftUI
 /// actions dans la barre d'outils, chemin de la sélection en bas.
 struct ContentView: View {
     @ObservedObject var model: SearchModel
-    @State private var selection = Set<FileHit.ID>()
+    @State private var selection: [FileHit] = []
     @State private var previewURL: URL?
     @State private var confirmTrash = false
     @FocusState private var searchFocused: Bool
@@ -50,10 +50,7 @@ struct ContentView: View {
         return L("%@ éléments", selection.count.formatted())
     }
 
-    private var selectedHit: FileHit? {
-        guard selection.count == 1, let id = selection.first else { return nil }
-        return model.results.first { $0.id == id }
-    }
+    private var selectedHit: FileHit? { selection.count == 1 ? selection.first : nil }
 
     // MARK: Barre d'outils
 
@@ -83,7 +80,7 @@ struct ContentView: View {
     }
 
     private func showPreview() {
-        guard let id = selection.first, let hit = model.results.first(where: { $0.id == id }) else { return }
+        guard let hit = selection.first else { return }
         previewURL = URL(fileURLWithPath: hit.path)
     }
 
@@ -116,8 +113,17 @@ struct ContentView: View {
                 VStack(alignment: .leading, spacing: 16) {
                     group("Emplacement") {
                         Menu {
-                            Button("Tout le disque") { model.scope = nil }
-                            Button("Dossier personnel") { model.scope = norm(NSHomeDirectory()) }
+                            Button("Tous les volumes") { model.setScope(nil) }
+                            Divider()
+                            ForEach(model.volumes) { volume in
+                                Button {
+                                    model.setScope(volume.path, bootOnly: volume.path == nil)
+                                } label: {
+                                    Label(volume.name, systemImage: volume.path == nil ? "internaldrive" : "externaldrive")
+                                }
+                            }
+                            Divider()
+                            Button("Dossier personnel") { model.setScope(norm(NSHomeDirectory())) }
                             Divider()
                             Button("Choisir un dossier…") { model.chooseScope() }
                         } label: {
@@ -252,101 +258,33 @@ struct ContentView: View {
     // MARK: Résultats
 
     private var table: some View {
-        Table(model.results, selection: $selection, sortOrder: $model.sortOrder) {
-            TableColumn("Nom", value: \.name, comparator: .localizedStandard) { hit in
-                HStack(spacing: 6) {
-                    Image(nsImage: NSWorkspace.shared.icon(forFile: hit.path))
-                        .resizable()
-                        .frame(width: 16, height: 16)
-                    Text(highlighted(hit.name)).lineLimit(1)
-                }
-            }
-            .width(min: 180, ideal: 340)
-
-            TableColumn("Modifié", value: \.mtime) { hit in
-                Text(hit.mtime.formatted(date: .numeric, time: .omitted))
-                    .monospacedDigit()
-                    .foregroundStyle(.secondary)
-            }
-            .width(min: 80, ideal: 90, max: 120)
-
-            TableColumn("Taille", value: \.size) { hit in
-                Text(hit.isDir ? "--" : ByteCountFormatter.string(fromByteCount: hit.size, countStyle: .file))
-                    .monospacedDigit()
-                    .foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity, alignment: .trailing)
-            }
-            .width(min: 70, ideal: 80, max: 110)
-
-            TableColumn("Type", value: \.kind) { hit in
-                Text(hit.kind).foregroundStyle(.secondary).lineLimit(1)
-            }
-            .width(min: 80, ideal: 130)
-
-            TableColumn("Emplacement", value: \.dir) { hit in
-                Text(hit.dir)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-                    .help(hit.path)
-            }
-            .width(min: 160, ideal: 360)
-        }
-        .contextMenu(forSelectionType: FileHit.ID.self) { ids in
-            if !ids.isEmpty {
-                Button("Ouvrir") { model.open(ids) }
-                Button("Afficher dans le Finder") { model.reveal(ids) }
-                Divider()
-                Button("Copier le chemin") { model.copyPaths(ids) }
-                Divider()
-                Button("Placer dans la corbeille") {
-                    selection = ids
+        ResultsTable(
+            rows: model.results,
+            version: model.resultsVersion,
+            highlight: model.highlightTokens,
+            onSelect: { selection = $0 },
+            onSort: { key, ascending in model.setSort(key, ascending: ascending) },
+            onAction: { action, hits in
+                switch action {
+                case .open: model.open(hits)
+                case .reveal: model.reveal(hits)
+                case .copyPath: model.copyPaths(hits)
+                case .preview:
+                    if let first = hits.first { previewURL = URL(fileURLWithPath: first.path) }
+                case .trash:
+                    selection = hits
                     confirmTrash = true
                 }
             }
-        } primaryAction: { ids in
-            model.open(ids)
-        }
-        .onKeyPress(.space) {
-            showPreview()
-            return .handled
-        }
+        )
         .overlay {
             if model.results.isEmpty, !model.searching {
                 Text(model.query.isEmpty ? L("Tapez pour chercher sur tout le disque") : L("Aucun résultat"))
                     .foregroundStyle(.tertiary)
                     .font(.title3)
+                    .allowsHitTesting(false)
             }
         }
-    }
-
-    /// Nom avec les termes cherchés surlignés.
-    private func highlighted(_ name: String) -> AttributedString {
-        var ranges: [Range<String.Index>] = []
-        for token in model.highlightTokens where !token.isEmpty {
-            var start = name.startIndex
-            while start < name.endIndex,
-                  let found = name.range(of: token, options: [.caseInsensitive, .diacriticInsensitive],
-                                         range: start..<name.endIndex), !found.isEmpty {
-                ranges.append(found)
-                start = found.upperBound
-            }
-        }
-        guard !ranges.isEmpty else { return AttributedString(name) }
-        ranges.sort { $0.lowerBound < $1.lowerBound }
-
-        var out = AttributedString()
-        var position = name.startIndex
-        for range in ranges where range.lowerBound >= position {
-            out.append(AttributedString(String(name[position..<range.lowerBound])))
-            var mark = AttributedString(String(name[range]))
-            mark.backgroundColor = .yellow
-            mark.foregroundColor = .black
-            out.append(mark)
-            position = range.upperBound
-        }
-        out.append(AttributedString(String(name[position...])))
-        return out
     }
 
     // MARK: Chemin de la sélection
