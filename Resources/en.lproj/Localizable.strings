@@ -1,0 +1,99 @@
+/* Clé = texte français du code. */
+
+/* Menus et À propos */
+"À propos de Fouine" = "About Fouine";
+"Rechercher les mises à jour…" = "Check for Updates…";
+"Recherche de fichiers indexée pour macOS." = "Indexed file search for macOS.";
+"Conçu et développé par %@" = "Designed and developed by %@";
+"Code source et versions" = "Source code and releases";
+
+/* Accès complet au disque */
+"Accès complet au disque requis" = "Full Disk Access required";
+"Ajoutez Fouine dans Réglages › Confidentialité et sécurité › Accès complet au disque, puis relancez l'app si l'indexation ne démarre pas." = "Add Fouine in Settings › Privacy & Security › Full Disk Access, then relaunch the app if indexing does not start.";
+"Ouvrir les Réglages" = "Open Settings";
+"Indexer quand même" = "Index Anyway";
+"Indexe ce qui est accessible ; macOS demandera l'accès dossier par dossier." = "Indexes what is reachable; macOS will ask for access folder by folder.";
+
+/* Critères */
+"Nom de fichier ou de dossier" = "File or folder name";
+"Texte à trouver dans les fichiers" = "Text to find inside files";
+"Arrêter" = "Stop";
+"Emplacement" = "Location";
+"Rechercher" = "Search for";
+"Opérateur" = "Operator";
+"Filtres" = "Filters";
+"Comparaison" = "Comparison";
+"Inclure" = "Include";
+"Affichage" = "Display";
+"Noms" = "Names";
+"Contenus" = "Contents";
+"Fichiers et dossiers" = "Files and folders";
+"Fichiers seulement" = "Only files";
+"Dossiers seulement" = "Only folders";
+"Tous les mots" = "All words";
+"Un des mots" = "Any word";
+"Expression exacte" = "Exact phrase";
+"Respecter la casse" = "Match case";
+"Tout le disque" = "Entire disk";
+"Dossier personnel" = "Home folder";
+"Choisir un dossier…" = "Choose a Folder…";
+"Chercher ici" = "Search Here";
+
+/* Résultats */
+"Nom" = "Name";
+"Type" = "Kind";
+"Taille" = "Size";
+"Modifié" = "Modified";
+"Ouvrir" = "Open";
+"Afficher dans le Finder" = "Show in Finder";
+"Copier le chemin" = "Copy Path";
+"Tapez pour chercher sur tout le disque" = "Type to search the entire disk";
+"Aucun résultat" = "No results";
+"1 résultat" = "1 result";
+"%@ résultats" = "%@ results";
+"%@ premiers résultats — affinez la recherche" = "First %@ results — refine your search";
+"Appuyez sur Retour pour chercher dans les contenus" = "Press Return to search file contents";
+"Lecture des fichiers…" = "Reading files…";
+"%@ trouvés — %@ fichiers lus…" = "%1$@ found — %2$@ files read…";
+"Arrêt à %@ résultats — affinez la recherche" = "Stopped at %@ results — refine your search";
+"Recherche interrompue — %@" = "Search stopped — %@";
+
+/* Index */
+"Reconstruire l'index complet" = "Rebuild the whole index";
+"Index en attente" = "Index waiting";
+"Indexation… %@ éléments" = "Indexing… %@ items";
+"%@ éléments indexés, à jour" = "%@ items indexed, up to date";
+"Erreur d'index : %@" = "Index error: %@";
+
+/* Opérateurs et filtres */
+"Jokers (* et ?)" = "Wildcards (* and ?)";
+"Expression régulière" = "Regular expression";
+"Tous les types" = "All kinds";
+"Images" = "Images";
+"Audio" = "Audio";
+"Vidéo" = "Video";
+"Documents" = "Documents";
+"Archives" = "Archives";
+"Code" = "Code";
+"Applications" = "Applications";
+"Toutes les dates" = "Any date";
+"Aujourd'hui" = "Today";
+"7 derniers jours" = "Last 7 days";
+"30 derniers jours" = "Last 30 days";
+"12 derniers mois" = "Last 12 months";
+"Toutes les tailles" = "Any size";
+"Plus de 1 Mo" = "Larger than 1 MB";
+"Plus de 100 Mo" = "Larger than 100 MB";
+"Plus de 1 Go" = "Larger than 1 GB";
+"Les noms sont toujours cherchés sans tenir compte de la casse ni des accents." = "Names are always searched ignoring case and accents.";
+"Contenu des paquets" = "Package contents";
+"Fichiers et dossiers invisibles" = "Invisible files and folders";
+"Dossiers en premier" = "Folders first";
+"Dossier" = "Folder";
+"Document" = "Document";
+
+/* Actions */
+"Coup d'œil" = "Quick Look";
+"Placer dans la corbeille" = "Move to Trash";
+"Placer %@ dans la corbeille ?" = "Move %@ to the Trash?";
+"%@ éléments" = "%@ items";
