@@ -228,7 +228,7 @@ struct ContentView: View {
             ProgressView().controlSize(.mini)
             Text("Vérification des changements…")
         case .ready(let count):
-            Text(L("%@ éléments indexés, à jour", count.formatted()))
+            Text(L("%@ éléments indexés · %@", count.formatted(), model.indexSize))
         case .failed(let message):
             Text(L("Erreur d'index : %@", message)).foregroundStyle(.red)
         }

@@ -30,6 +30,7 @@ final class SearchModel: ObservableObject {
     @Published var searchInfo = ""
     @Published var indexState = IndexState.waiting
     @Published var needsFullDiskAccess = false
+    @Published private(set) var indexSize = ""
     @Published private(set) var volumes: [Volume] = []
 
     struct Volume: Identifiable {
@@ -56,7 +57,10 @@ final class SearchModel: ObservableObject {
     init() {
         Database.discardIfOutdated(path: IndexService.dbPath)
         service.onState = { [weak self] state in
-            MainActor.assumeIsolated { self?.indexState = state }
+            MainActor.assumeIsolated {
+                self?.indexState = state
+                self?.refreshIndexSize()
+            }
         }
         service.onRefreshed = { [weak self] seconds, changed in
             MainActor.assumeIsolated {
@@ -104,6 +108,16 @@ final class SearchModel: ObservableObject {
         accessTimer = nil
         needsFullDiskAccess = false
         service.start()
+    }
+
+    /// Place occupée sur disque par l'index (base et journal).
+    private func refreshIndexSize() {
+        var total: Int64 = 0
+        for suffix in ["", "-wal"] {
+            let attrs = try? FileManager.default.attributesOfItem(atPath: IndexService.dbPath + suffix)
+            total += (attrs?[.size] as? NSNumber)?.int64Value ?? 0
+        }
+        indexSize = ByteCountFormatter.string(fromByteCount: total, countStyle: .file)
     }
 
     /// Reconstruction complète (secours).

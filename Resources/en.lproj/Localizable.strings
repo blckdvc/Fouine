@@ -62,7 +62,7 @@
 "Reconstruire l'index complet" = "Rebuild the whole index";
 "Index en attente" = "Index waiting";
 "Indexation… %@ éléments" = "Indexing… %@ items";
-"%@ éléments indexés, à jour" = "%@ items indexed, up to date";
+"%@ éléments indexés · %@" = "%1$@ items indexed · %2$@";
 "Erreur d'index : %@" = "Index error: %@";
 
 /* Opérateurs et filtres */
