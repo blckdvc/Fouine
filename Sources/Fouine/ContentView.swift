@@ -57,7 +57,9 @@ struct ContentView: View {
 
     @ToolbarContentBuilder
     private var toolbar: some ToolbarContent {
-        ToolbarItemGroup {
+        // Sans titre dans la barre, les actions se calent à droite.
+        ToolbarItem { Spacer() }
+        ToolbarItemGroup(placement: .primaryAction) {
             Group {
                 Button { model.open(selection) } label: {
                     Label("Ouvrir", systemImage: "arrow.up.forward.app")
@@ -345,6 +347,8 @@ struct WindowFrameSaver: NSViewRepresentable {
             guard let window = view.window else { return }
             window.setFrameUsingName(name)
             window.setFrameAutosaveName(name)
+            // Le nom figure déjà à côté du logo : inutile de le répéter dans la barre de titre.
+            window.titleVisibility = .hidden
         }
         return view
     }
