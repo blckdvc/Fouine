@@ -26,12 +26,12 @@ final class IndexStore {
         db = try Database(path: path)
         findDirStmt = try db.prepare("SELECT id FROM dirs WHERE path = ?")
         insertDirStmt = try db.prepare(
-            "INSERT INTO dirs(path) VALUES(?) ON CONFLICT(path) DO UPDATE SET path = path RETURNING id")
+            "INSERT INTO dirs(path, mtime) VALUES(?, ?) ON CONFLICT(path) DO UPDATE SET mtime = excluded.mtime RETURNING id")
         updateFileStmt = try db.prepare(
             "UPDATE files SET size = ?, mtime = ?, is_dir = ? WHERE dir_id = ? AND name = ?")
         insertFileStmt = try db.prepare(
             "INSERT INTO files(dir_id, name, size, mtime, is_dir) VALUES(?,?,?,?,?)")
-        insertDirIDStmt = try db.prepare("INSERT OR REPLACE INTO dirs(id, path) VALUES(?, ?)")
+        insertDirIDStmt = try db.prepare("INSERT OR REPLACE INTO dirs(id, path, mtime) VALUES(?, ?, ?)")
         deleteFileStmt = try db.prepare("DELETE FROM files WHERE dir_id = ? AND name = ?")
         deleteTreeFilesStmt = try db.prepare(
             "DELETE FROM files WHERE dir_id IN (SELECT id FROM dirs WHERE path >= ? AND path < ?)")
@@ -84,6 +84,7 @@ final class IndexStore {
         for sub in batch.subdirs {
             insertDirIDStmt.bind(1, sub.id)
             insertDirIDStmt.bind(2, sub.key)
+            insertDirIDStmt.bind(3, sub.mtime)
             insertDirIDStmt.step()
             insertDirIDStmt.reset()
         }
@@ -112,10 +113,12 @@ final class IndexStore {
         return findDirStmt.step() ? findDirStmt.int(0) : nil
     }
 
+    /// `mtime` est la date du dossier lui-même : elle sert au rafraîchissement différentiel.
     @discardableResult
-    func insertDir(key: String) -> Int64 {
+    func insertDir(key: String, mtime: Int64) -> Int64 {
         defer { insertDirStmt.reset() }
         insertDirStmt.bind(1, key)
+        insertDirStmt.bind(2, mtime)
         return insertDirStmt.step() ? insertDirStmt.int(0) : 0
     }
 
@@ -123,15 +126,14 @@ final class IndexStore {
     func ensureDir(_ path: String) -> Int64 {
         let key = IndexStore.dirKey(path)
         if let id = findDir(key: key) { return id }
+        var st = stat()
+        let mtime = lstat(path, &st) == 0 ? Int64(st.st_mtimespec.tv_sec) : 0
         if path != "/" {
             let ns = path as NSString
             let parent = ensureDir(ns.deletingLastPathComponent)
-            var st = stat()
-            let ok = lstat(path, &st) == 0
-            upsertFile(dir: parent, name: ns.lastPathComponent, size: 0,
-                       mtime: ok ? Int64(st.st_mtimespec.tv_sec) : 0, isDir: true)
+            upsertFile(dir: parent, name: ns.lastPathComponent, size: 0, mtime: mtime, isDir: true)
         }
-        return insertDir(key: key)
+        return insertDir(key: key, mtime: mtime)
     }
 
     // MARK: Entrées
@@ -165,6 +167,31 @@ final class IndexStore {
             stmt.step()
             stmt.reset()
         }
+    }
+
+    // MARK: Rafraîchissement différentiel
+
+    /// Tous les dossiers connus, avec la date enregistrée lors de leur dernière lecture.
+    func allDirs() -> [(id: Int64, key: String, mtime: Int64)] {
+        guard let stmt = try? db.prepare("SELECT id, path, mtime FROM dirs") else { return [] }
+        var out: [(id: Int64, key: String, mtime: Int64)] = []
+        while stmt.step() { out.append((stmt.int(0), stmt.string(1), stmt.int(2))) }
+        return out
+    }
+
+    func names(in dir: Int64) -> [String] {
+        guard let stmt = try? db.prepare("SELECT name FROM files WHERE dir_id = ?") else { return [] }
+        stmt.bind(1, dir)
+        var out: [String] = []
+        while stmt.step() { out.append(stmt.string(0)) }
+        return out
+    }
+
+    func setDirMtime(_ id: Int64, _ mtime: Int64) {
+        guard let stmt = try? db.prepare("UPDATE dirs SET mtime = ? WHERE id = ?") else { return }
+        stmt.bind(1, mtime)
+        stmt.bind(2, id)
+        stmt.step()
     }
 
     // MARK: Méta

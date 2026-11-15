@@ -25,6 +25,10 @@ struct FouineApp: App {
             CommandGroup(replacing: .appInfo) {
                 Button("À propos de Fouine") { showAbout() }
                 Button("Rechercher les mises à jour…") { updater.checkForUpdates(nil) }
+                Divider()
+                Button("Rafraîchir l'index") { model.refresh() }
+                    .keyboardShortcut("r")
+                Button("Reconstruire l'index complet") { model.reindex() }
             }
         }
     }

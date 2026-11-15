@@ -58,6 +58,13 @@ final class SearchModel: ObservableObject {
         service.onState = { [weak self] state in
             MainActor.assumeIsolated { self?.indexState = state }
         }
+        service.onRefreshed = { [weak self] seconds, changed in
+            MainActor.assumeIsolated {
+                self?.searchInfo = L("Index rafraîchi en %@ s — %@ dossiers modifiés",
+                                     seconds.formatted(.number.precision(.fractionLength(1))),
+                                     changed.formatted())
+            }
+        }
         refreshVolumes()
         let center = NSWorkspace.shared.notificationCenter
         for name in [NSWorkspace.didMountNotification, NSWorkspace.didUnmountNotification] {
@@ -99,7 +106,11 @@ final class SearchModel: ObservableObject {
         service.start()
     }
 
+    /// Reconstruction complète (secours).
     func reindex() { service.reindex() }
+
+    /// Rafraîchissement différentiel : ne relit que les dossiers modifiés.
+    func refresh() { service.refresh() }
 
     // MARK: Recherche
 

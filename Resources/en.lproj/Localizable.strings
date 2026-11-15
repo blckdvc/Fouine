@@ -97,3 +97,9 @@
 "Placer dans la corbeille" = "Move to Trash";
 "Placer %@ dans la corbeille ?" = "Move %@ to the Trash?";
 "%@ éléments" = "%@ items";
+
+/* Rafraîchissement */
+"Rafraîchir l'index" = "Refresh Index";
+"Rafraîchir l'index (dossiers modifiés seulement)" = "Refresh the index (changed folders only)";
+"Vérification des changements…" = "Checking for changes…";
+"Index rafraîchi en %@ s — %@ dossiers modifiés" = "Index refreshed in %1$@ s — %2$@ folders changed";

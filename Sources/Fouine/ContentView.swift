@@ -199,9 +199,9 @@ struct ContentView: View {
             HStack(spacing: 6) {
                 indexStatus
                 Spacer(minLength: 0)
-                Button { model.reindex() } label: { Image(systemName: "arrow.clockwise") }
+                Button { model.refresh() } label: { Image(systemName: "arrow.clockwise") }
                     .buttonStyle(.borderless)
-                    .help("Reconstruire l'index complet")
+                    .help("Rafraîchir l'index (dossiers modifiés seulement)")
                     .disabled(!isReady)
             }
         }
@@ -224,6 +224,9 @@ struct ContentView: View {
         case .indexing(let count):
             ProgressView().controlSize(.mini)
             Text(L("Indexation… %@ éléments", count.formatted()))
+        case .refreshing:
+            ProgressView().controlSize(.mini)
+            Text("Vérification des changements…")
         case .ready(let count):
             Text(L("%@ éléments indexés, à jour", count.formatted()))
         case .failed(let message):

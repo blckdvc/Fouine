@@ -14,15 +14,21 @@ open build/Fouine.app
 ```
 
 Au premier lancement, accordez **Accès complet au disque** à Fouine (Réglages ›
-Confidentialité et sécurité). L'indexation initiale démarre alors (environ une minute et demie pour 7 millions d'éléments).
+Confidentialité et sécurité). L'indexation initiale démarre alors (environ 35 s pour 7 millions d'éléments).
 
 ## Fonctionnement
 
 - **Index** : base SQLite dans `~/Library/Application Support/Fouine/index.sqlite`
   (nom, dossier, taille, date). Recherche de sous-chaînes par index trigramme (FTS5),
   insensible à la casse et aux accents. Mesuré sur 7,3 millions d'éléments : indexation
-  complète en 86 s, base de 811 Mo.
-- **Indexation** : parcours parallèle du disque (`getattrlistbulk`), un seul fil écrit en base.
+  complète en 35 s, base de 776 Mo.
+- **Indexation** : parcours parallèle du disque (`getattrlistbulk`), une file de 8 fils par
+  volume (au-delà, les lectures se gênent dans le noyau ; par volume, pour qu'un disque lent
+  ne retienne pas les SSD), un seul fil écrit en base.
+- **Rafraîchissement** (⌘R) : différentiel. Seuls les dossiers dont la date a changé sont
+  relus, soit 7,6 s au lieu d'un index complet. Il ne voit pas la simple modification du
+  contenu d'un fichier, que le suivi continu traite. « Reconstruire l'index complet » reste
+  dans le menu Fouine.
 - **Mise à jour de l'index** : FSEvents suit tout le disque en continu. Au lancement,
   les changements survenus pendant que l'app était fermée sont rejoués ; si l'historique
   système est perdu, l'index est reconstruit.

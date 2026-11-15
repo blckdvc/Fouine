@@ -4,6 +4,8 @@ import CoreServices
 enum IndexState: Equatable {
     case waiting
     case indexing(Int)
+    /// Rafraîchissement différentiel en cours ; la recherche reste disponible.
+    case refreshing
     case ready(Int)
     case failed(String)
 }
@@ -27,6 +29,8 @@ final class IndexService {
 
     /// Appelé sur le fil principal.
     var onState: ((IndexState) -> Void)?
+    /// Compte rendu d'un rafraîchissement (durée, dossiers modifiés). Appelé sur le fil principal.
+    var onRefreshed: ((_ seconds: Double, _ changedDirs: Int) -> Void)?
 
     private let queue = DispatchQueue(label: "fouine.index", qos: .utility)
     private var store: IndexStore!
@@ -73,6 +77,75 @@ final class IndexService {
             guard self.store != nil else { return }
             self.fullIndex()
         }
+    }
+
+    /// Rafraîchit sans tout relire : seuls les dossiers dont la date a changé sont réexaminés.
+    func refresh() {
+        queue.async {
+            guard self.store != nil, self.store.meta("indexed") == "1" else { return }
+            self.differentialRefresh()
+        }
+    }
+
+    /// macOS change la date d'un dossier dès qu'on y ajoute, supprime ou renomme une entrée.
+    /// On compare donc la date de chaque dossier connu à celle enregistrée, et on ne relit
+    /// que ceux qui diffèrent. La modification du contenu d'un fichier ne change pas la date
+    /// de son dossier : elle relève du suivi FSEvents, pas de ce rafraîchissement.
+    private func differentialRefresh() {
+        let started = Date()
+        publish(.refreshing)
+        let dirs = store.allDirs()
+
+        // Vérification des dates en parallèle (8 tranches : au-delà, le noyau sature).
+        let slices = 8
+        let lock = NSLock()
+        var changed: [(id: Int64, key: String, mtime: Int64)] = []
+        var missing: [String] = []
+        DispatchQueue.concurrentPerform(iterations: slices) { slice in
+            var localChanged: [(id: Int64, key: String, mtime: Int64)] = []
+            var localMissing: [String] = []
+            var st = stat()
+            var i = slice
+            while i < dirs.count {
+                let dir = dirs[i]
+                i += slices
+                let path = dir.key == "/" ? "/" : String(dir.key.dropLast())
+                if lstat(path, &st) != 0 || (st.st_mode & S_IFMT) != S_IFDIR {
+                    localMissing.append(path)
+                } else if Int64(st.st_mtimespec.tv_sec) != dir.mtime {
+                    localChanged.append((dir.id, dir.key, Int64(st.st_mtimespec.tv_sec)))
+                }
+            }
+            lock.lock()
+            changed.append(contentsOf: localChanged)
+            missing.append(contentsOf: localMissing)
+            lock.unlock()
+        }
+
+        store.begin()
+        // Dossiers disparus (ou remplacés par un fichier) : les parents d'abord.
+        for path in missing.sorted(by: { $0.count < $1.count }) where !isExcluded(path) {
+            apply(path, rescan: false)
+        }
+        // Dossiers modifiés : on aligne la liste de leurs entrées directes.
+        for dir in changed {
+            let path = dir.key == "/" ? "/" : String(dir.key.dropLast())
+            guard let onDisk = try? FileManager.default.contentsOfDirectory(atPath: path) else { continue }
+            let diskNames = Set(onDisk.map(norm))
+            let known = Set(store.names(in: dir.id))
+            for name in known.subtracting(diskNames) { apply(dir.key + name, rescan: false) }
+            for name in diskNames.subtracting(known) where !isExcluded(dir.key + name) {
+                apply(dir.key + name, rescan: false)
+            }
+            store.setDirMtime(dir.id, dir.mtime)
+        }
+        store.commit()
+
+        let seconds = Date().timeIntervalSince(started)
+        let changedCount = changed.count + missing.count
+        store.setMeta("refreshSeconds", String(format: "%.1f s, %d dossiers", seconds, changedCount))
+        publish(.ready(store.countFiles()))
+        DispatchQueue.main.async { self.onRefreshed?(seconds, changedCount) }
     }
 
     // MARK: Indexation complète
@@ -167,7 +240,7 @@ final class IndexService {
             let name: String
             if e.fts_level == 0 {
                 if path == "/" {
-                    ent.pointee.fts_number = Int(store.insertDir(key: "/"))
+                    ent.pointee.fts_number = Int(store.insertDir(key: "/", mtime: Int64(st.st_mtimespec.tv_sec)))
                     continue
                 }
                 let ns = norm(path) as NSString
@@ -181,7 +254,7 @@ final class IndexService {
             store.upsertFile(dir: dirID, name: name, size: isDir ? 0 : Int64(st.st_size),
                              mtime: Int64(st.st_mtimespec.tv_sec), isDir: isDir)
             if isDir {
-                ent.pointee.fts_number = Int(store.insertDir(key: norm(path) + "/"))
+                ent.pointee.fts_number = Int(store.insertDir(key: norm(path) + "/", mtime: Int64(st.st_mtimespec.tv_sec)))
             }
 
             count += 1

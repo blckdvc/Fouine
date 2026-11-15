@@ -11,7 +11,7 @@ struct DirBatch {
     let dirID: Int64
     var entries: [Entry] = []
     /// Sous-dossiers à parcourir : identifiant attribué et clé (chemin avec barre finale).
-    var subdirs: [(id: Int64, key: String)] = []
+    var subdirs: [(id: Int64, key: String, mtime: Int64)] = []
 }
 
 /// Parcours complet du disque, en parallèle.
@@ -23,7 +23,9 @@ struct DirBatch {
 final class FastScanner {
     private let excluded: Set<String>
     private let sink: (DirBatch) -> Void
-    private let queue = OperationQueue()
+    /// Une file par volume : un disque lent (RAID externe…) ne retient pas les fils des SSD.
+    private var queues: [dev_t: OperationQueue] = [:]
+    private let pending = DispatchGroup()
     private let lock = NSLock()
     private var nextDirID: Int64 = 0
     private var localVolumes: [dev_t: Bool] = [:]
@@ -41,8 +43,6 @@ final class FastScanner {
     init(excluded: [String], sink: @escaping (DirBatch) -> Void) {
         self.excluded = Set(excluded)
         self.sink = sink
-        queue.maxConcurrentOperationCount = max(4, ProcessInfo.processInfo.activeProcessorCount)
-        queue.qualityOfService = .utility
     }
 
     /// Parcourt `root` (déjà inscrit sous `rootID`) et ne rend la main qu'une fois tout lu.
@@ -51,11 +51,28 @@ final class FastScanner {
         var st = stat()
         let dev = lstat(root, &st) == 0 ? st.st_dev : 0
         enqueue(path: root, id: rootID, dev: dev)
-        queue.waitUntilAllOperationsAreFinished()
+        pending.wait()
     }
 
     private func enqueue(path: String, id: Int64, dev: dev_t) {
-        queue.addOperation { [unowned self] in self.scan(path: path, id: id, dev: dev) }
+        pending.enter()
+        queue(for: dev).addOperation { [unowned self] in
+            self.scan(path: path, id: id, dev: dev)
+            self.pending.leave()
+        }
+    }
+
+    private func queue(for dev: dev_t) -> OperationQueue {
+        lock.lock()
+        defer { lock.unlock() }
+        if let known = queues[dev] { return known }
+        let queue = OperationQueue()
+        // Mesuré : au-delà de 8 fils par volume, les lectures se gênent dans le noyau
+        // (28 fils : 3,2 s pour ~/Library ; 6 à 8 fils : 1,0 à 1,2 s).
+        queue.maxConcurrentOperationCount = 8
+        queue.qualityOfService = .utility
+        queues[dev] = queue
+        return queue
     }
 
     private func allocateDirID() -> Int64 {
@@ -145,7 +162,7 @@ final class FastScanner {
                     if entryDev != dev, !isLocal(childPath, dev: entryDev) { continue }
                     let childID = allocateDirID()
                     batch.entries.append(.init(name: name, size: 0, mtime: mtime, isDir: true))
-                    batch.subdirs.append((childID, norm(childPath) + "/"))
+                    batch.subdirs.append((childID, norm(childPath) + "/", mtime))
                     enqueue(path: childPath, id: childID, dev: entryDev)
                 } else {
                     batch.entries.append(.init(name: name, size: size, mtime: mtime, isDir: false))

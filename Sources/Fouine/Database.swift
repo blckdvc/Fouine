@@ -13,7 +13,10 @@ final class Database {
 
     static let schema = """
     CREATE TABLE IF NOT EXISTS meta(key TEXT PRIMARY KEY, value TEXT) WITHOUT ROWID;
-    CREATE TABLE IF NOT EXISTS dirs(id INTEGER PRIMARY KEY, path TEXT NOT NULL UNIQUE);
+    CREATE TABLE IF NOT EXISTS dirs(
+        id INTEGER PRIMARY KEY,
+        path TEXT NOT NULL UNIQUE,
+        mtime INTEGER NOT NULL DEFAULT 0);
     CREATE TABLE IF NOT EXISTS files(
         id INTEGER PRIMARY KEY,
         dir_id INTEGER NOT NULL,
@@ -31,7 +34,7 @@ final class Database {
     // de stocker tous les noms une deuxième fois.
 
     /// À incrémenter quand le schéma change : l'ancien index est alors jeté et reconstruit.
-    static let schemaVersion: Int32 = 2
+    static let schemaVersion: Int32 = 3
 
     /// Supprime une base d'un schéma antérieur. À appeler avant toute ouverture.
     static func discardIfOutdated(path: String) {
