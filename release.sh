@@ -18,7 +18,7 @@ ditto -c -k --sequesterRsrc --keepParent build/Fouine.app "dist/Fouine-$VERSION.
 "$OUTILS/generate_appcast" dist \
     --download-url-prefix "https://github.com/$DEPOT/releases/download/v$VERSION/"
 
-git commit -am "Version $VERSION"
+git diff --quiet || git commit -am "Version $VERSION"
 git tag "v$VERSION"
 git push origin HEAD "v$VERSION"
 gh release create "v$VERSION" "dist/Fouine-$VERSION.zip" dist/appcast.xml \
