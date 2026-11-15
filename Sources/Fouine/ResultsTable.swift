@@ -17,6 +17,8 @@ struct ResultsTable: NSViewRepresentable {
     /// Change à chaque nouvelle liste : évite de comparer les tableaux.
     let version: Int
     let highlight: [String]
+    /// Facteur de zoom : taille du texte, des icônes et hauteur des lignes.
+    let zoom: CGFloat
     var onSelect: ([FileHit]) -> Void
     var onSort: (SortKey, Bool) -> Void
     var onAction: (RowAction, [FileHit]) -> Void
@@ -48,7 +50,8 @@ struct ResultsTable: NSViewRepresentable {
         table.allowsMultipleSelection = true
         table.usesAlternatingRowBackgroundColors = true
         table.columnAutoresizingStyle = .lastColumnOnlyAutoresizingStyle
-        table.rowHeight = 22
+        table.rowHeight = (22 * zoom).rounded()
+        coordinator.zoom = zoom
         table.target = coordinator
         table.doubleAction = #selector(Coordinator.doubleClicked)
         table.onKey = { [weak coordinator] action in coordinator?.perform(action, clicked: false) }
@@ -72,6 +75,11 @@ struct ResultsTable: NSViewRepresentable {
     func updateNSView(_ scroll: NSScrollView, context: Context) {
         let coordinator = context.coordinator
         coordinator.parent = self
+        if coordinator.zoom != zoom {
+            coordinator.zoom = zoom
+            coordinator.table?.rowHeight = (22 * zoom).rounded()
+            coordinator.table?.reloadData()
+        }
         guard coordinator.version != version else { return }
         coordinator.version = version
         coordinator.rows = rows
@@ -87,6 +95,7 @@ struct ResultsTable: NSViewRepresentable {
         var rows: [FileHit] = []
         var highlight: [String] = []
         var version = -1
+        var zoom: CGFloat = 1
         var ignoreSortChange = false
 
         private var iconsByExtension: [String: NSImage] = [:]
@@ -122,6 +131,14 @@ struct ResultsTable: NSViewRepresentable {
             let cell = (tableView.makeView(withIdentifier: tableColumn.identifier, owner: nil) as? NSTableCellView)
                 ?? makeCell(tableColumn.identifier, key: key)
             guard let text = cell.textField else { return cell }
+            let fontSize = NSFont.systemFontSize * zoom
+            text.font = key == .size || key == .mtime
+                ? .monospacedDigitSystemFont(ofSize: fontSize, weight: .regular)
+                : .systemFont(ofSize: fontSize)
+            for constraint in cell.imageView?.constraints ?? []
+            where constraint.firstAttribute == .width || constraint.firstAttribute == .height {
+                constraint.constant = (16 * zoom).rounded()
+            }
             switch key {
             case .name:
                 text.attributedStringValue = highlighted(hit.name)
@@ -200,7 +217,9 @@ struct ResultsTable: NSViewRepresentable {
 
         /// Nom avec les termes cherchés surlignés.
         private func highlighted(_ name: String) -> NSAttributedString {
-            let out = NSMutableAttributedString(string: name, attributes: [.paragraphStyle: singleLine])
+            let out = NSMutableAttributedString(string: name, attributes: [
+                .paragraphStyle: singleLine, .font: NSFont.systemFont(ofSize: NSFont.systemFontSize * zoom),
+            ])
             let ns = name as NSString
             for token in highlight where !token.isEmpty {
                 var search = NSRange(location: 0, length: ns.length)

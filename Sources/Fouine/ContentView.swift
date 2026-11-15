@@ -19,7 +19,7 @@ struct ContentView: View {
                 Divider()
             }
             HStack(spacing: 0) {
-                sidebar.frame(width: 220)
+                sidebar.frame(width: 220 * model.zoom)
                 Divider()
                 VStack(spacing: 0) {
                     searchField
@@ -165,6 +165,7 @@ struct ContentView: View {
             Divider()
             status
         }
+        .font(.system(size: 13 * model.zoom))
         .background(.background.secondary)
     }
 
@@ -174,9 +175,9 @@ struct ContentView: View {
             HStack(spacing: 9) {
                 Image(nsImage: NSApp.applicationIconImage)
                     .resizable()
-                    .frame(width: 40, height: 40)
+                    .frame(width: 40 * model.zoom, height: 40 * model.zoom)
                 Text(verbatim: "Fouine")
-                    .font(.system(size: 19, weight: .semibold, design: .rounded))
+                    .font(.system(size: 19 * model.zoom, weight: .semibold, design: .rounded))
                 Spacer(minLength: 0)
             }
             .contentShape(Rectangle())
@@ -187,7 +188,7 @@ struct ContentView: View {
 
     private func group<Content: View>(_ title: LocalizedStringKey, @ViewBuilder content: () -> Content) -> some View {
         VStack(alignment: .leading, spacing: 5) {
-            Text(title).font(.subheadline.weight(.semibold))
+            Text(title).font(.system(size: 11 * model.zoom, weight: .semibold))
             content()
         }
     }
@@ -226,7 +227,7 @@ struct ContentView: View {
                     .disabled(!isReady)
             }
         }
-        .font(.caption)
+        .font(.system(size: 10 * model.zoom))
         .foregroundStyle(.secondary)
         .padding(10)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -263,7 +264,7 @@ struct ContentView: View {
             TextField(model.target == .name ? L("Nom de fichier ou de dossier") : L("Texte à trouver dans les fichiers"),
                       text: $model.query)
                 .textFieldStyle(.plain)
-                .font(.title3)
+                .font(.system(size: 15 * model.zoom))
                 .focused($searchFocused)
                 .onSubmit { model.submit() }
             if model.searching { ProgressView().controlSize(.small) }
@@ -286,6 +287,7 @@ struct ContentView: View {
             rows: model.results,
             version: model.resultsVersion,
             highlight: model.highlightTokens,
+            zoom: model.zoom,
             onSelect: { selection = $0 },
             onSort: { key, ascending in model.setSort(key, ascending: ascending) },
             onAction: { action, hits in
@@ -320,7 +322,7 @@ struct ContentView: View {
                     let parts = hit.path.split(separator: "/").map(String.init)
                     ForEach(Array(parts.enumerated()), id: \.offset) { index, part in
                         if index > 0 {
-                            Image(systemName: "chevron.right").font(.system(size: 8)).foregroundStyle(.tertiary)
+                            Image(systemName: "chevron.right").font(.system(size: 8 * model.zoom)).foregroundStyle(.tertiary)
                         }
                         Image(systemName: index == parts.count - 1 && !hit.isDir ? "doc" : "folder")
                             .foregroundStyle(.secondary)
@@ -330,10 +332,10 @@ struct ContentView: View {
                     Text(" ")
                 }
             }
-            .font(.caption)
+            .font(.system(size: 10 * model.zoom))
             .padding(.horizontal, 10)
         }
-        .frame(height: 24)
+        .frame(height: 24 * model.zoom)
     }
 }
 

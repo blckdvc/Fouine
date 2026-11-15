@@ -30,6 +30,17 @@ final class SearchModel: ObservableObject {
     @Published var searchInfo = ""
     @Published var indexState = IndexState.waiting
     @Published var needsFullDiskAccess = false
+    /// Facteur de zoom de l'interface (⌘+, ⌘-, ⌘0), mémorisé d'un lancement à l'autre.
+    @Published private(set) var zoom: CGFloat = {
+        let saved = UserDefaults.standard.double(forKey: "zoom")
+        return saved >= 0.7 && saved <= 2.0 ? saved : 1
+    }() {
+        didSet { UserDefaults.standard.set(Double(zoom), forKey: "zoom") }
+    }
+
+    func zoomIn() { zoom = min(2.0, (zoom * 1.1 * 100).rounded() / 100) }
+    func zoomOut() { zoom = max(0.7, (zoom / 1.1 * 100).rounded() / 100) }
+    func resetZoom() { zoom = 1 }
     @Published private(set) var indexSize = ""
     @Published private(set) var volumes: [Volume] = []
 

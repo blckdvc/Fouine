@@ -108,3 +108,8 @@
 /* Barre de menus */
 "Ouvrir Fouine" = "Open Fouine";
 "Quitter Fouine" = "Quit Fouine";
+
+/* Zoom */
+"Agrandir" = "Zoom In";
+"Réduire" = "Zoom Out";
+"Taille réelle" = "Actual Size";

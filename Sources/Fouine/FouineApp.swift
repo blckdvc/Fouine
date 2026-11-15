@@ -21,6 +21,15 @@ struct FouineApp: App {
         }
         .defaultSize(width: 1180, height: 760)
         .commands {
+            CommandGroup(before: .toolbar) {
+                Button("Agrandir") { model.zoomIn() }
+                    .keyboardShortcut("+")
+                Button("Réduire") { model.zoomOut() }
+                    .keyboardShortcut("-")
+                Button("Taille réelle") { model.resetZoom() }
+                    .keyboardShortcut("0")
+                Divider()
+            }
             CommandGroup(replacing: .appInfo) {
                 AboutButton()
                 Button("Rechercher les mises à jour…") { updater.checkForUpdates(nil) }
