@@ -3,9 +3,10 @@
 /* Menus et À propos */
 "À propos de Fouine" = "About Fouine";
 "Rechercher les mises à jour…" = "Check for Updates…";
-"Recherche de fichiers indexée pour macOS." = "Indexed file search for macOS.";
-"Conçu et développé par %@" = "Designed and developed by %@";
-"Code source et versions" = "Source code and releases";
+"Recherche de fichiers pour macOS : index de tout le disque tenu à jour en continu, recherche par nom instantanée et par contenu, filtres." = "File search for macOS: an index of the entire disk kept up to date continuously, instant name search, content search and filters.";
+"par %@" = "by %@";
+"Libre et open source — si le cœur vous en dit, offrez-moi quelques tokens :" = "Free & open-source — if you feel like it, buy me a few tokens:";
+"Inclut Sparkle, sous sa propre licence." = "Includes Sparkle, under its own license.";
 
 /* Accès complet au disque */
 "Accès complet au disque requis" = "Full Disk Access required";

@@ -15,7 +15,7 @@ mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources" "$APP/Contents/Framewor
 cp "$(swift build -c release --show-bin-path)/Fouine" "$APP/Contents/MacOS/Fouine"
 cp Resources/Info.plist "$APP/Contents/Info.plist"
 cp -R Resources/*.lproj "$APP/Contents/Resources/"
-cp Resources/AppIcon.icns "$APP/Contents/Resources/"
+cp Resources/AppIcon.icns Resources/*.png "$APP/Contents/Resources/"
 cp -R "$SPARKLE" "$APP/Contents/Frameworks/"
 
 IDENTITE="${IDENTITE:-$(security find-identity -v -p codesigning | awk 'NR==1 && /^ *1\)/ {print $2}')}"
