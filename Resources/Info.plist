@@ -2,37 +2,37 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-    <key>CFBundleName</key>
-    <string>Fouine</string>
-    <key>CFBundleDisplayName</key>
-    <string>Fouine</string>
-    <key>CFBundleIdentifier</key>
-    <string>app.fouine.Fouine</string>
-    <key>CFBundleExecutable</key>
-    <string>Fouine</string>
-    <key>CFBundlePackageType</key>
-    <string>APPL</string>
-    <key>CFBundleShortVersionString</key>
-    <string>0.1.0</string>
-    <key>CFBundleVersion</key>
-    <string>1</string>
-    <key>CFBundleDevelopmentRegion</key>
-    <string>en</string>
-    <key>LSMinimumSystemVersion</key>
-    <string>14.0</string>
-    <key>LSApplicationCategoryType</key>
-    <string>public.app-category.utilities</string>
-    <key>NSHighResolutionCapable</key>
-    <true/>
-    <key>NSHumanReadableCopyright</key>
-    <string>© 2026 Ludovic Benhamou</string>
-    <key>SUFeedURL</key>
-    <string>https://github.com/blckdvc/Fouine/releases/latest/download/appcast.xml</string>
-    <key>SUPublicEDKey</key>
-    <string>l9+bpcZF7yhcdcFZ9/FPZ0/RiFSWa+Uta1wTOg8EYns=</string>
-    <key>SUEnableAutomaticChecks</key>
-    <true/>
-    <key>NSPrincipalClass</key>
-    <string>NSApplication</string>
+	<key>CFBundleDevelopmentRegion</key>
+	<string>en</string>
+	<key>CFBundleDisplayName</key>
+	<string>Fouine</string>
+	<key>CFBundleExecutable</key>
+	<string>Fouine</string>
+	<key>CFBundleIdentifier</key>
+	<string>app.fouine.Fouine</string>
+	<key>CFBundleName</key>
+	<string>Fouine</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>0.1.0</string>
+	<key>CFBundleVersion</key>
+	<string>2</string>
+	<key>LSApplicationCategoryType</key>
+	<string>public.app-category.utilities</string>
+	<key>LSMinimumSystemVersion</key>
+	<string>14.0</string>
+	<key>NSHighResolutionCapable</key>
+	<true/>
+	<key>NSHumanReadableCopyright</key>
+	<string>© 2026 Ludovic Benhamou</string>
+	<key>NSPrincipalClass</key>
+	<string>NSApplication</string>
+	<key>SUEnableAutomaticChecks</key>
+	<true/>
+	<key>SUFeedURL</key>
+	<string>https://github.com/blckdvc/Fouine/releases/latest/download/appcast.xml</string>
+	<key>SUPublicEDKey</key>
+	<string>l9+bpcZF7yhcdcFZ9/FPZ0/RiFSWa+Uta1wTOg8EYns=</string>
 </dict>
 </plist>
