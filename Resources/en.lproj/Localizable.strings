@@ -104,3 +104,7 @@
 "Rafraîchir l'index (dossiers modifiés seulement)" = "Refresh the index (changed folders only)";
 "Vérification des changements…" = "Checking for changes…";
 "Index rafraîchi en %@ s — %@ dossiers modifiés" = "Index refreshed in %1$@ s — %2$@ folders changed";
+
+/* Barre de menus */
+"Ouvrir Fouine" = "Open Fouine";
+"Quitter Fouine" = "Quit Fouine";

@@ -36,6 +36,55 @@ struct FouineApp: App {
         }
         .windowResizability(.contentSize)
         .windowStyle(.hiddenTitleBar)
+
+        // Icône dans la barre de menus : l'app reste active (et l'index à jour) fenêtre fermée.
+        MenuBarExtra {
+            MenuBarContent(model: model, updater: updater)
+        } label: {
+            Image(nsImage: FouineApp.menuBarIcon)
+        }
+    }
+
+    /// L'icône de l'app ramenée à la taille de la barre de menus, sans sa marge transparente.
+    static let menuBarIcon: NSImage = {
+        let side: CGFloat = 18
+        let image = NSImage(size: NSSize(width: side, height: side))
+        guard let path = Bundle.main.path(forResource: "AppIcon", ofType: "icns"),
+              let source = NSImage(contentsOfFile: path) else {
+            return NSImage(systemSymbolName: "magnifyingglass", accessibilityDescription: "Fouine") ?? image
+        }
+        image.lockFocus()
+        NSGraphicsContext.current?.imageInterpolation = .high
+        let full = source.size
+        // Le carré arrondi occupe 824 px sur les 1024 du canevas.
+        let inset = full.width * 100 / 1024
+        source.draw(in: NSRect(x: 0, y: 0, width: side, height: side),
+                    from: NSRect(x: inset, y: inset, width: full.width - 2 * inset, height: full.height - 2 * inset),
+                    operation: .sourceOver, fraction: 1)
+        image.unlockFocus()
+        return image
+    }()
+}
+
+private struct MenuBarContent: View {
+    @ObservedObject var model: SearchModel
+    let updater: SPUStandardUpdaterController
+    @Environment(\.openWindow) private var openWindow
+
+    var body: some View {
+        Button("Ouvrir Fouine") {
+            openWindow(id: "main")
+            NSApp.activate(ignoringOtherApps: true)
+        }
+        Button("Rafraîchir l'index") { model.refresh() }
+        Divider()
+        Button("À propos de Fouine") {
+            openWindow(id: "about")
+            NSApp.activate(ignoringOtherApps: true)
+        }
+        Button("Rechercher les mises à jour…") { updater.checkForUpdates(nil) }
+        Divider()
+        Button("Quitter Fouine") { NSApp.terminate(nil) }
     }
 }
 

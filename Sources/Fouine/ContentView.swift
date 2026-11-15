@@ -10,6 +10,7 @@ struct ContentView: View {
     @State private var previewURL: URL?
     @State private var confirmTrash = false
     @FocusState private var searchFocused: Bool
+    @Environment(\.openWindow) private var openWindow
 
     var body: some View {
         VStack(spacing: 0) {
@@ -111,6 +112,7 @@ struct ContentView: View {
         VStack(spacing: 0) {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
+                    brand
                     group("Emplacement") {
                         Menu {
                             Button("Tous les volumes") { model.setScope(nil) }
@@ -162,6 +164,23 @@ struct ContentView: View {
             status
         }
         .background(.background.secondary)
+    }
+
+    /// Logo et nom en tête du panneau ; un clic ouvre « À propos », comme dans KDownloader.
+    private var brand: some View {
+        Button { openWindow(id: "about") } label: {
+            HStack(spacing: 9) {
+                Image(nsImage: NSApp.applicationIconImage)
+                    .resizable()
+                    .frame(width: 40, height: 40)
+                Text(verbatim: "Fouine")
+                    .font(.system(size: 19, weight: .semibold, design: .rounded))
+                Spacer(minLength: 0)
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .help("À propos de Fouine")
     }
 
     private func group<Content: View>(_ title: LocalizedStringKey, @ViewBuilder content: () -> Content) -> some View {
