@@ -89,6 +89,7 @@ final class SearchModel: ObservableObject {
             }
         }
         refreshVolumes()
+        applyDemoArguments()
         let center = NSWorkspace.shared.notificationCenter
         for name in [NSWorkspace.didMountNotification, NSWorkspace.didUnmountNotification] {
             center.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
@@ -328,6 +329,34 @@ final class SearchModel: ObservableObject {
     }
 
     /// `path == nil` avec `bootOnly` désigne le volume de démarrage ; sans, tout le disque.
+    /// Captures d'écran du README : les arguments de lancement règlent la recherche à montrer,
+    /// sans clic. `-demoScope` limite la recherche au dossier créé par `outils/demo.sh`, les
+    /// autres reprennent le nom des cas : `-demoTarget content`, `-demoKind folders`,
+    /// `-demoOperator regex`, `-demoType documents`, `-demoDate year`, `-demoSize mb1`,
+    /// puis `-demoQuery <texte>` lance la recherche.
+    private func applyDemoArguments() {
+        let d = UserDefaults.standard
+        func pick<T: CaseIterable>(_ key: String, _ type: T.Type) -> T? {
+            guard let wanted = d.string(forKey: key) else { return nil }
+            return T.allCases.first { String(describing: $0) == wanted }
+        }
+        guard d.string(forKey: "demoQuery") != nil || d.string(forKey: "demoScope") != nil else { return }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in
+            guard let self else { return }
+            if let scope = d.string(forKey: "demoScope") { self.setScope(scope) }
+            if let v = pick("demoTarget", SearchTarget.self) { self.target = v }
+            if let v = pick("demoKind", SearchKind.self) { self.kind = v }
+            if let v = pick("demoOperator", SearchOperator.self) { self.op = v }
+            if let v = pick("demoType", TypeFilter.self) { self.typeFilter = v }
+            if let v = pick("demoDate", DateFilter.self) { self.dateFilter = v }
+            if let v = pick("demoSize", SizeFilter.self) { self.sizeFilter = v }
+            if let query = d.string(forKey: "demoQuery") {
+                self.query = query
+                self.submit()
+            }
+        }
+    }
+
     func setScope(_ path: String?, bootOnly: Bool = false) {
         bootVolumeOnly = bootOnly
         scope = path

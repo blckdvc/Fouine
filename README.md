@@ -20,6 +20,8 @@ pokes their nose everywhere.
 
 ![Fouine — every file and folder matching a name, across all volumes](docs/screenshot-main.png)
 
+
+
 ### Support the project
 Free and open-source 🙂 — if you feel like it, buy me a few tokens:
 
@@ -75,7 +77,13 @@ Spotlight is described here as it ships and is searched from its own window or f
 - **Search for** files and folders, only files, or only folders
 - The matched terms are **highlighted** in each name
 
-![Fouine — a wildcard search, with the path bar showing where the selected file lives](docs/screenshot-wildcards.png)
+![Fouine — a wildcard search](docs/screenshot-wildcards.png)
+
+![Fouine — a regular expression matching two image formats](docs/screenshot-regex.png)
+
+![Fouine — folders only](docs/screenshot-folders.png)
+
+
 
 ### Contents
 
@@ -84,6 +92,9 @@ Spotlight is described here as it ships and is searched from its own window or f
 - Optional **Match case**
 - Cloud files that aren't downloaded are skipped, so a search never triggers a download
 - A search can be stopped at any moment; what was found stays in the list
+
+![Fouine — a content search limited to one folder](docs/screenshot-contents.png)
+
 
 ### Location
 
@@ -102,6 +113,9 @@ Spotlight is described here as it ships and is searched from its own window or f
   `.git`, build folders and the volumes' own Spotlight stores are left out of the index. The
   folders themselves are still found. They churn constantly and were most of the background
   work; ticking the box rebuilds the index with them
+
+![Fouine — documents larger than 1 MB, two filters combined](docs/screenshot-filters.png)
+
 
 ## The index
 
@@ -164,6 +178,9 @@ folders (`/private/tmp`, `/private/var/folders`) are left out too.
 - **Updates itself** through [Sparkle](https://sparkle-project.org): new versions are downloaded
   from this repository's releases and checked against an EdDSA signature before they are installed
 
+![Fouine — the About window](docs/screenshot-about.png)
+
+
 ## Install
 
 1. Download `Fouine-x.y.z.zip` from the [latest release](https://github.com/blckdvc/Fouine/releases/latest)
@@ -201,6 +218,8 @@ build. To pick the certificate:
 ```bash
 IDENTITE="Developer ID Application: Your Name" ./build.sh
 ```
+
+For screenshots, `./outils/demo.sh` creates an invented project in `/Users/Shared` (and `./outils/demo.sh remove` deletes it), and launch arguments set the search to show without a click: `-demoScope <folder>`, `-demoTarget content`, `-demoKind folders`, `-demoOperator regex`, `-demoType documents`, `-demoSize mb1`, then `-demoQuery <text>`.
 
 The icon is drawn by a script. To change it, edit `outils/icone.swift`, then:
 
@@ -247,4 +266,4 @@ update can be published for the copies already out there.
 | `Sources/Fouine/FouineApp.swift` | Window, menus, About, menu bar, Sparkle |
 | `Sources/Fouine/Localisation.swift` | Text in the system language |
 | `Resources/` | `Info.plist`, translations, icon |
-| `outils/` | The icon's drawing script |
+| `outils/` | The icon's drawing script and the demo data script |
