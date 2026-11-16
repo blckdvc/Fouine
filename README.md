@@ -18,6 +18,8 @@ pokes their nose everywhere.
   of rows
 - **Truly native**: Swift and SwiftUI, a 2 MB download, no Electron
 
+![Fouine — every file and folder matching a name, across all volumes](docs/screenshot-main.png)
+
 ### Support the project
 Free and open-source 🙂 — if you feel like it, buy me a few tokens:
 
@@ -72,6 +74,8 @@ Spotlight is described here as it ships and is searched from its own window or f
   whole name) and regular expressions
 - **Search for** files and folders, only files, or only folders
 - The matched terms are **highlighted** in each name
+
+![Fouine — a wildcard search, with the path bar showing where the selected file lives](docs/screenshot-wildcards.png)
 
 ### Contents
 
