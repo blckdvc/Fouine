@@ -37,17 +37,38 @@ final class IndexService {
     private var watcher: Watcher?
     private var started = false
     private var lastCount = Date.distantPast
+    private var lastResync = Date.distantPast
+    private var resyncPending = false
+    private let resyncInterval: TimeInterval = 600
 
     /// Dossiers jamais indexés : doublon du volume de données, pseudo-fichiers,
     /// instantanés Time Machine, et notre propre base (sinon boucle d'événements).
-    private let excluded: [String] = [
-        "/System/Volumes",
-        "/dev",
-        "/private/var/vm",
-        "/Volumes/.timemachine",
-        "/Volumes/com.apple.TimeMachine.localsnapshots",
-        IndexService.supportDir,
-    ]
+    private lazy var excluded: [String] = makeExcluded()
+
+    private func makeExcluded() -> [String] {
+        let always = [
+            "/System/Volumes",
+            "/dev",
+            "/private/var/vm",
+            "/Volumes/.timemachine",
+            "/Volumes/com.apple.TimeMachine.localsnapshots",
+            IndexService.supportDir,
+        ]
+        return includeTechnical ? always : always + Noise.roots
+    }
+
+    /// Indexer aussi le contenu des caches et dossiers techniques. Lu sur la file d'indexation.
+    private var includeTechnical = UserDefaults.standard.bool(forKey: Noise.defaultsKey)
+
+    /// Change le réglage et reconstruit l'index en conséquence.
+    func setIncludeTechnical(_ on: Bool) {
+        queue.async {
+            guard on != self.includeTechnical else { return }
+            self.includeTechnical = on
+            self.excluded = self.makeExcluded()
+            if self.store != nil { self.fullIndex() }
+        }
+    }
 
     func start() {
         queue.async {
@@ -62,7 +83,10 @@ final class IndexService {
                 self.publish(.failed("\(error)"))
                 return
             }
-            if self.store.meta("indexed") == "1" {
+            // Index construit avec l'autre réglage des dossiers techniques : on le refait.
+            let built = self.store.meta("technique") == "1"
+            if self.store.meta("indexed") == "1", built == self.includeTechnical {
+                try? self.store.ensureDirIndex()
                 try? self.store.enableTriggers()
                 self.publish(.ready(self.store.countFiles()))
                 self.startWatcher()
@@ -168,7 +192,7 @@ final class IndexService {
             let store = self.store!
             var count = 0
             var sinceCommit = 0
-            let scanner = FastScanner(excluded: excluded) { batch in
+            let scanner = FastScanner(excluded: excluded, includeTechnical: includeTechnical) { batch in
                 slots.wait()
                 writer.async {
                     store.insertBulk(batch)
@@ -193,6 +217,7 @@ final class IndexService {
             try store.finishBulk()
             try store.enableTriggers()
             store.setMeta("lastEvent", String(eventID))
+            store.setMeta("technique", includeTechnical ? "1" : "0")
             store.setMeta("indexed", "1")
             store.setMeta("indexSeconds", String(format: "parcours %.1f s, index %.1f s",
                                                  scanned.timeIntervalSince(started),
@@ -223,11 +248,14 @@ final class IndexService {
             let path = String(cString: cPath)
             let isDir = info == FTS_D
 
+            let technical = isDir && !includeTechnical && Noise.isContainer(path: path)
             if isDir {
                 if excluded.contains(path) {
                     fts_set(fts, ent, FTS_SKIP)
                     continue
                 }
+                // Dossier technique : on l'inscrit plus bas, sans y entrer.
+                if technical { fts_set(fts, ent, FTS_SKIP) }
                 // Changement de volume : on n'entre pas dans les volumes réseau.
                 if e.fts_level > 0, let parentStat = e.fts_parent?.pointee.fts_statp?.pointee,
                    parentStat.st_dev != st.st_dev, !isLocalVolume(path) {
@@ -253,7 +281,7 @@ final class IndexService {
 
             store.upsertFile(dir: dirID, name: name, size: isDir ? 0 : Int64(st.st_size),
                              mtime: Int64(st.st_mtimespec.tv_sec), isDir: isDir)
-            if isDir {
+            if isDir, !technical {
                 ent.pointee.fts_number = Int(store.insertDir(key: norm(path) + "/", mtime: Int64(st.st_mtimespec.tv_sec)))
             }
 
@@ -291,7 +319,7 @@ final class IndexService {
         let renamed = UInt32(kFSEventStreamEventFlagItemRenamed)
         let dataPrefix = "/System/Volumes/Data"
 
-        var needsFull = false
+        var lostFlags: UInt32 = 0
         var seen = Set<String>()
         store.begin()
         for event in events {
@@ -302,8 +330,9 @@ final class IndexService {
             path = norm(path)
 
             if path == root || path == "/" || path == dataPrefix {
-                // L'historique FSEvents a été perdu : seul un parcours complet rattrape.
-                if event.flags & mustScan != 0 { needsFull = true }
+                // Des événements ont été perdus (historique trop ancien, ou rafale que le
+                // système a renoncé à détailler) : un rafraîchissement différentiel rattrape.
+                if event.flags & mustScan != 0 { lostFlags |= event.flags }
                 continue
             }
             if isExcluded(path) { continue }
@@ -314,16 +343,37 @@ final class IndexService {
         store.setMeta("lastEvent", String(lastID))
         store.commit()
 
-        if needsFull {
-            fullIndex()
+        if lostFlags != 0 {
+            resync(flags: lostFlags)
         } else if Date().timeIntervalSince(lastCount) > 20 {
             lastCount = Date()
             publish(.ready(store.countFiles()))
         }
     }
 
+    /// Rattrapage après une perte d'événements. Jamais de reconstruction complète ici : sur une
+    /// machine active le système signale des pertes régulièrement, et reconstruire à chaque fois
+    /// occupe le processeur en permanence. On relit seulement les dossiers dont la date a changé,
+    /// et au plus une fois toutes les dix minutes.
+    private func resync(flags: UInt32) {
+        NSLog("Fouine : événements perdus (drapeaux 0x%x), rattrapage différentiel", flags)
+        let wait = resyncInterval - Date().timeIntervalSince(lastResync)
+        if wait <= 0 {
+            lastResync = Date()
+            differentialRefresh()
+        } else if !resyncPending {
+            resyncPending = true
+            queue.asyncAfter(deadline: .now() + wait) {
+                self.resyncPending = false
+                self.lastResync = Date()
+                self.differentialRefresh()
+            }
+        }
+    }
+
     private func isExcluded(_ path: String) -> Bool {
-        excluded.contains { path == $0 || path.hasPrefix($0 + "/") }
+        if !includeTechnical, Noise.isInside(path) { return true }
+        return excluded.contains { path == $0 || path.hasPrefix($0 + "/") }
     }
 
     /// Aligne l'index sur l'état réel de `path`.

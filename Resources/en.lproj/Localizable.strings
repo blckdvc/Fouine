@@ -89,6 +89,8 @@
 "Les noms sont toujours cherchés sans tenir compte de la casse ni des accents." = "Names are always searched ignoring case and accents.";
 "Contenu des paquets" = "Package contents";
 "Fichiers et dossiers invisibles" = "Invisible files and folders";
+"Caches et dossiers techniques" = "Caches and technical folders";
+"Indexe aussi le contenu des caches, de node_modules, de .git et des dossiers de compilation. L'index est reconstruit, il grossit et l'app travaille davantage en arrière-plan." = "Also indexes the contents of caches, node_modules, .git and build folders. The index is rebuilt, it grows, and the app works more in the background.";
 "Dossiers en premier" = "Folders first";
 "Dossier" = "Folder";
 "Document" = "Document";

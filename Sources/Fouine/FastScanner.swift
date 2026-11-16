@@ -22,6 +22,8 @@ struct DirBatch {
 /// puissent être inscrits sans attendre l'écriture du parent.
 final class FastScanner {
     private let excluded: Set<String>
+    /// Faux : le contenu des dossiers techniques (caches…) n'est pas lu.
+    private let includeTechnical: Bool
     private let sink: (DirBatch) -> Void
     /// Une file par volume : un disque lent (RAID externe…) ne retient pas les fils des SSD.
     private var queues: [dev_t: OperationQueue] = [:]
@@ -40,8 +42,9 @@ final class FastScanner {
     private static let typeDirectory: UInt32 = 2
 
     /// `sink` est appelé depuis plusieurs fils à la fois.
-    init(excluded: [String], sink: @escaping (DirBatch) -> Void) {
+    init(excluded: [String], includeTechnical: Bool, sink: @escaping (DirBatch) -> Void) {
         self.excluded = Set(excluded)
+        self.includeTechnical = includeTechnical
         self.sink = sink
     }
 
@@ -116,6 +119,7 @@ final class FastScanner {
 
         var batch = DirBatch(dirID: id)
         let prefix = path == "/" ? "/" : path + "/"
+        let dirName = (path as NSString).lastPathComponent
 
         while true {
             let count = getattrlistbulk(fd, &request, buffer, capacity, 0)
@@ -160,6 +164,11 @@ final class FastScanner {
                     let childPath = prefix + rawName
                     if excluded.contains(childPath) { continue }
                     if entryDev != dev, !isLocal(childPath, dev: entryDev) { continue }
+                    if !includeTechnical, Noise.isContainer(name: rawName, parent: dirName) {
+                        // Le dossier figure dans l'index, son contenu non.
+                        batch.entries.append(.init(name: name, size: 0, mtime: mtime, isDir: true))
+                        continue
+                    }
                     let childID = allocateDirID()
                     batch.entries.append(.init(name: name, size: 0, mtime: mtime, isDir: true))
                     batch.subdirs.append((childID, norm(childPath) + "/", mtime))

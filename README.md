@@ -1,7 +1,7 @@
 # Fouine
 
 **Three letters in, every match on every disk.** Fouine keeps an index of all your volumes, so a
-file name search answers while you are still typing: about 96,000 matches out of 7.3 million items
+file name search answers while you are still typing: about 96,000 matches out of 6.3 million items
 in a fifth of a second. Hidden files, system folders and external drives included.
 
 It is a native macOS file finder in the spirit of EasyFind, with the one thing EasyFind lacks: it
@@ -60,23 +60,30 @@ Free and open-source 🙂 — if you feel like it, buy me a few tokens:
 - **Package contents**: look inside `.app`, `.framework`, `.photoslibrary` and similar bundles,
   off by default as in the Finder
 - **Invisible files and folders**, on by default
+- **Caches and technical folders**, off by default: the contents of caches, `node_modules`,
+  `.git`, build folders and the volumes' own Spotlight stores are left out of the index. The
+  folders themselves are still found. They churn constantly and were most of the background
+  work; ticking the box rebuilds the index with them
 
 ## The index
 
-Measured on a Mac with 7.3 million items across an internal SSD, two external SSDs and a 24 TB
+Measured on a Mac with 6.3 million indexed items across an internal SSD, two external SSDs and a 24 TB
 RAID:
 
 | | |
 | --- | --- |
-| First full index | 35 s |
+| First full index | 50 s |
 | Refresh (⌘R) | 7.6 s |
-| Index size on disk | about 780 MB |
-| `sylenth1`, 95,759 matches | 0.14 s to query, 0.06 s to sort |
+| Index size on disk | about 760 MB |
+| CPU at rest, on a busy machine | under 1 % |
+| Memory at rest | about 95 MB |
+| `sylenth1`, 95,756 matches | 0.14 s to query, 0.06 s to sort |
 
 - **Live updates**: macOS reports every file created, deleted, renamed or modified, and only those
-  entries are touched
+  entries are touched. Changes are applied in 3-second batches, which keeps the CPU near idle even
+  while caches and build folders churn
 - **Catch-up at launch**: the changes made while Fouine was closed are replayed from the system's
-  own history. If that history is gone, the index is rebuilt
+  own history. If part of that history is gone, a refresh catches up instead of a full rebuild
 - **Refresh** only re-reads the folders whose modification date changed, and the search stays
   usable meanwhile
 - **Rebuild the whole index** stays available in the Fouine menu, as a fallback
@@ -88,7 +95,8 @@ The index lives in `~/Library/Application Support/Fouine/index.sqlite`: an SQLit
 an FTS5 trigram index over the names.
 
 Not indexed: `/System/Volumes` (a duplicate of the data volume), `/dev`, Time Machine snapshots
-and network volumes.
+and network volumes. Unless **Caches and technical folders** is ticked, the system's temporary
+folders (`/private/tmp`, `/private/var/folders`) are left out too.
 
 ## Results
 
@@ -194,6 +202,7 @@ update can be published for the copies already out there.
 | `Sources/Fouine/FastScanner.swift` | Parallel walk of the disk |
 | `Sources/Fouine/IndexService.swift` | Full index, refresh, and applying file-system events |
 | `Sources/Fouine/Watcher.swift` | FSEvents stream |
+| `Sources/Fouine/Noise.swift` | Which folders count as caches and technical folders |
 | `Sources/Fouine/SearchEngine.swift` | Name and content search |
 | `Sources/Fouine/SearchModel.swift`, `ContentView.swift` | The SwiftUI interface |
 | `Sources/Fouine/ResultsTable.swift` | Native results table |

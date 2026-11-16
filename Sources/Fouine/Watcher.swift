@@ -29,9 +29,11 @@ final class Watcher {
             }
             watcher.handler(events, ids[count - 1])
         }
-        let flags = UInt32(kFSEventStreamCreateFlagFileEvents | kFSEventStreamCreateFlagNoDefer)
+        // Les événements sont regroupés par tranches de 3 s : un fichier temporaire créé puis
+        // supprimé entre-temps ne coûte alors aucune écriture dans l'index.
+        let flags = UInt32(kFSEventStreamCreateFlagFileEvents)
         guard let s = FSEventStreamCreate(
-            nil, callback, &context, [path] as CFArray, since, 1.0, flags) else { return }
+            nil, callback, &context, [path] as CFArray, since, 3.0, flags) else { return }
         FSEventStreamSetDispatchQueue(s, queue)
         FSEventStreamStart(s)
         stream = s

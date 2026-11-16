@@ -16,6 +16,14 @@ final class SearchModel: ObservableObject {
     @Published var sizeFilter = SizeFilter.any { didSet { optionsChanged() } }
     @Published var includeHidden = true { didSet { optionsChanged() } }
     @Published var includePackages = false { didSet { optionsChanged() } }
+    /// Contenu des caches et dossiers techniques : change ce qui est indexé, pas un simple filtre.
+    @Published var includeTechnical = UserDefaults.standard.bool(forKey: Noise.defaultsKey) {
+        didSet {
+            guard includeTechnical != oldValue else { return }
+            UserDefaults.standard.set(includeTechnical, forKey: Noise.defaultsKey)
+            service.setIncludeTechnical(includeTechnical)
+        }
+    }
 
     // Résultats
     /// Liste triée affichée. `resultsVersion` change avec elle, pour que le tableau

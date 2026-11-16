@@ -17,22 +17,24 @@ final class IndexStore {
     private let insertFileStmt: Statement
     private let insertDirIDStmt: Statement
     private let deleteFileStmt: Statement
+    private let findFileStmt: Statement
     private let deleteTreeFilesStmt: Statement
     private let deleteTreeDirsStmt: Statement
     private let getMetaStmt: Statement
     private let setMetaStmt: Statement
 
     init(path: String) throws {
-        db = try Database(path: path)
+        db = try Database(path: path, cacheKB: 32768)
         findDirStmt = try db.prepare("SELECT id FROM dirs WHERE path = ?")
         insertDirStmt = try db.prepare(
             "INSERT INTO dirs(path, mtime) VALUES(?, ?) ON CONFLICT(path) DO UPDATE SET mtime = excluded.mtime RETURNING id")
         updateFileStmt = try db.prepare(
-            "UPDATE files SET size = ?, mtime = ?, is_dir = ? WHERE dir_id = ? AND name = ?")
+            "UPDATE files SET size = ?, mtime = ?, is_dir = ? WHERE dir_id = ? AND h = ? AND name = ?")
         insertFileStmt = try db.prepare(
-            "INSERT INTO files(dir_id, name, size, mtime, is_dir) VALUES(?,?,?,?,?)")
+            "INSERT INTO files(dir_id, name, size, mtime, is_dir, h) VALUES(?,?,?,?,?,?)")
         insertDirIDStmt = try db.prepare("INSERT OR REPLACE INTO dirs(id, path, mtime) VALUES(?, ?, ?)")
-        deleteFileStmt = try db.prepare("DELETE FROM files WHERE dir_id = ? AND name = ?")
+        deleteFileStmt = try db.prepare("DELETE FROM files WHERE id = ?")
+        findFileStmt = try db.prepare("SELECT id FROM files WHERE dir_id = ? AND h = ? AND name = ?")
         deleteTreeFilesStmt = try db.prepare(
             "DELETE FROM files WHERE dir_id IN (SELECT id FROM dirs WHERE path >= ? AND path < ?)")
         deleteTreeDirsStmt = try db.prepare("DELETE FROM dirs WHERE path >= ? AND path < ?")
@@ -41,7 +43,34 @@ final class IndexStore {
     }
 
     func begin() { try? db.exec("BEGIN") }
-    func commit() { try? db.exec("COMMIT") }
+    func commit() {
+        flushDeletes()
+        try? db.exec("COMMIT")
+    }
+
+    /// Suppressions en attente, appliquées juste avant le commit par identifiant croissant.
+    /// L'index plein texte se vide sur disque chaque fois qu'on lui présente un identifiant
+    /// plus petit que le précédent : supprimer au fil de l'eau, entre deux ajouts, le fait
+    /// écrire un segment par fichier. Regroupées et triées, les suppressions n'en coûtent qu'un.
+    private var pendingDeletes = Set<Int64>()
+
+    private func fileID(dir: Int64, name: String) -> Int64? {
+        defer { findFileStmt.reset() }
+        findFileStmt.bind(1, dir)
+        findFileStmt.bind(2, Noise.hash(name))
+        findFileStmt.bind(3, name)
+        return findFileStmt.step() ? findFileStmt.int(0) : nil
+    }
+
+    private func flushDeletes() {
+        guard !pendingDeletes.isEmpty else { return }
+        for id in pendingDeletes.sorted() {
+            deleteFileStmt.bind(1, id)
+            deleteFileStmt.step()
+            deleteFileStmt.reset()
+        }
+        pendingDeletes.removeAll(keepingCapacity: true)
+    }
 
     // MARK: Triggers FTS (retirés pendant l'indexation complète, bien plus rapide ainsi)
 
@@ -61,6 +90,7 @@ final class IndexStore {
             DROP TRIGGER IF EXISTS files_ai;
             DROP TRIGGER IF EXISTS files_ad;
             DROP INDEX IF EXISTS files_dir;
+            DROP INDEX IF EXISTS files_dir_h;
             DELETE FROM files;
             DELETE FROM dirs;
             INSERT INTO files_fts(files_fts) VALUES('delete-all');
@@ -70,8 +100,13 @@ final class IndexStore {
 
     /// Après l'insertion en masse : index des dossiers puis index plein texte, construits d'un bloc.
     func finishBulk() throws {
-        try db.exec("CREATE INDEX IF NOT EXISTS files_dir ON files(dir_id);")
+        try ensureDirIndex()
         try db.exec("INSERT INTO files_fts(files_fts) VALUES('rebuild');")
+    }
+
+    /// Retrouve une entrée par dossier et empreinte du nom sans relire tout le dossier.
+    func ensureDirIndex() throws {
+        try db.exec("CREATE INDEX IF NOT EXISTS files_dir_h ON files(dir_id, h);")
     }
 
     /// Pendant l'indexation complète, la durabilité ne sert à rien : en cas de coupure on recommence.
@@ -99,6 +134,7 @@ final class IndexStore {
         insertFileStmt.bind(3, size)
         insertFileStmt.bind(4, mtime)
         insertFileStmt.bind(5, isDir ? 1 : 0)
+        insertFileStmt.bind(6, Noise.hash(name))
         insertFileStmt.step()
         insertFileStmt.reset()
     }
@@ -139,11 +175,14 @@ final class IndexStore {
     // MARK: Entrées
 
     func upsertFile(dir: Int64, name: String, size: Int64, mtime: Int64, isDir: Bool) {
+        // Supprimée puis recréée dans le même lot : l'entrée reste.
+        if !pendingDeletes.isEmpty, let id = fileID(dir: dir, name: name) { pendingDeletes.remove(id) }
         updateFileStmt.bind(1, size)
         updateFileStmt.bind(2, mtime)
         updateFileStmt.bind(3, isDir ? 1 : 0)
         updateFileStmt.bind(4, dir)
-        updateFileStmt.bind(5, name)
+        updateFileStmt.bind(5, Noise.hash(name))
+        updateFileStmt.bind(6, name)
         updateFileStmt.step()
         updateFileStmt.reset()
         if db.changes == 0 {
@@ -152,10 +191,7 @@ final class IndexStore {
     }
 
     func deleteFile(dir: Int64, name: String) {
-        deleteFileStmt.bind(1, dir)
-        deleteFileStmt.bind(2, name)
-        deleteFileStmt.step()
-        deleteFileStmt.reset()
+        if let id = fileID(dir: dir, name: name) { pendingDeletes.insert(id) }
     }
 
     /// Supprime tout le contenu indexé sous le dossier `path` (sans barre finale).

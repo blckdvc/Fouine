@@ -154,6 +154,8 @@ struct ContentView: View {
                     group("Inclure") {
                         Toggle("Contenu des paquets", isOn: $model.includePackages)
                         Toggle("Fichiers et dossiers invisibles", isOn: $model.includeHidden)
+                        Toggle("Caches et dossiers techniques", isOn: $model.includeTechnical)
+                            .help("Indexe aussi le contenu des caches, de node_modules, de .git et des dossiers de compilation. L'index est reconstruit, il grossit et l'app travaille davantage en arrière-plan.")
                     }
                     group("Affichage") {
                         Toggle("Dossiers en premier", isOn: $model.foldersFirst)

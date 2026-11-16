@@ -23,18 +23,19 @@ final class Database {
         name TEXT NOT NULL,
         size INTEGER NOT NULL,
         mtime INTEGER NOT NULL,
-        is_dir INTEGER NOT NULL);
-    CREATE INDEX IF NOT EXISTS files_dir ON files(dir_id);
+        is_dir INTEGER NOT NULL,
+        h INTEGER NOT NULL DEFAULT 0);
     CREATE VIRTUAL TABLE IF NOT EXISTS files_fts USING fts5(
         name, content='files', content_rowid='id',
         tokenize='trigram remove_diacritics 1', detail=none, columnsize=0);
     """
     // Choix de taille, mesurés sur 7,3 M d'entrées : l'index FTS sans positions
-    // (detail=none) pèse 178 Mo au lieu de 484, et l'index sur dir_id seul évite
-    // de stocker tous les noms une deuxième fois.
+    // (detail=none) pèse 178 Mo au lieu de 484. L'index (dir_id, h) est créé par
+    // `IndexStore` : `h` est une empreinte du nom sur deux octets, ce qui retrouve une
+    // entrée sans relire son dossier et sans stocker tous les noms une deuxième fois.
 
     /// À incrémenter quand le schéma change : l'ancien index est alors jeté et reconstruit.
-    static let schemaVersion: Int32 = 3
+    static let schemaVersion: Int32 = 4
 
     /// Supprime une base d'un schéma antérieur. À appeler avant toute ouverture.
     static func discardIfOutdated(path: String) {
@@ -56,7 +57,9 @@ final class Database {
         }
     }
 
-    init(path: String) throws {
+    /// `cacheKB` : mémoire propre à la connexion. Les lectures passent en plus par `mmap`,
+    /// c'est-à-dire par le cache de fichiers du système, que macOS reprend quand il en a besoin.
+    init(path: String, cacheKB: Int = 8192) throws {
         var h: OpaquePointer?
         let flags = SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE | SQLITE_OPEN_FULLMUTEX
         guard sqlite3_open_v2(path, &h, flags, nil) == SQLITE_OK, let h else {
@@ -66,7 +69,7 @@ final class Database {
         }
         handle = h
         sqlite3_busy_timeout(h, 15000)
-        try exec("PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL; PRAGMA cache_size=-65536;")
+        try exec("PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL; PRAGMA cache_size=-\(cacheKB); PRAGMA mmap_size=2147483648;")
         try exec(Database.schema)
         try exec("PRAGMA user_version = \(Database.schemaVersion)")
     }
