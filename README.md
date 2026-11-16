@@ -23,10 +23,44 @@ Free and open-source 🙂 — if you feel like it, buy me a few tokens:
 
 [![Buy me tokens](docs/buy-me-tokens.png)](https://paypal.me/lbenh)
 
-**Contents:** [Searching](#searching) · [The index](#the-index) · [Results](#results) ·
-[Keyboard](#keyboard) · [macOS integration](#macos-integration) · [Install](#install) ·
-[Build](#build-from-source) · [Releasing](#releasing) · [Known limits](#known-limits) ·
-[Project layout](#project-layout)
+**Contents:** [Fouine and Spotlight](#fouine-and-spotlight) · [Searching](#searching) ·
+[The index](#the-index) · [Results](#results) · [Keyboard](#keyboard) ·
+[macOS integration](#macos-integration) · [Install](#install) · [Build](#build-from-source) ·
+[Releasing](#releasing) · [Known limits](#known-limits) · [Project layout](#project-layout)
+
+## Fouine and Spotlight
+
+Spotlight answers "open that document I was working on". Fouine answers "where is every file
+with this in its name, on any disk". They overlap less than it seems, and Fouine doesn't replace
+Spotlight: it leaves it running.
+
+| | Spotlight | Fouine |
+| --- | --- | --- |
+| **Made for** | Opening apps, documents, mail, contacts; quick answers | Finding files and folders by name, exhaustively |
+| **Name matching** | From the start of a word | Anywhere in the name, from the first character typed |
+| **Wildcards and regular expressions** | No | Yes, on names |
+| **Hidden files** | Left out | Included, on by default |
+| **System folders and `~/Library`** | Left out by default | Included |
+| **Inside packages** (`.app`, `.photoslibrary`…) | No | Optional |
+| **Number of results** | A ranked selection; the full list needs a Finder window | All of them, up to 2 million |
+| **Order** | By relevance, chosen by macOS | Sortable by name, date, size, kind or location |
+| **Scope** | Everything, or one folder from the Finder | All volumes, one volume, home, or any folder |
+| **Filters** | Kind, date and metadata, as Finder search criteria | Kind, date modified and size, one click each |
+| **Search inside files** | Indexed and instant; reads PDFs, Office files and mail | On demand, by reading the files; no index |
+| **Metadata** (author, EXIF, tags…) | Yes | No |
+| **External drives** | Indexed, one index stored on each drive | Indexed, in one database on the Mac |
+| **Network volumes** | Depends on the server | Not indexed |
+| **Keeping up to date** | Automatic | Automatic, live and after a relaunch |
+| **Index you can inspect or rebuild** | Hidden; rebuilt from Terminal or the privacy list | One SQLite file; size shown, rebuild from the menu |
+| **Beyond files** | Calculator, conversions, definitions, web suggestions | Nothing: files and folders only |
+| **Setup** | Built into macOS | A download, plus Full Disk Access |
+
+Where Spotlight is the better tool: finding a document by what it says, searching mail and
+photos, and launching things. Where Fouine is: knowing that a file exists somewhere, whatever its
+name, folder or visibility, and seeing every match at once.
+
+Spotlight is described here as it ships and is searched from its own window or from the Finder;
+`mdfind` in Terminal can go further.
 
 ## Searching
 
