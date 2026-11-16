@@ -2,7 +2,7 @@ import AppKit
 import Sparkle
 import SwiftUI
 
-/// Coordonnées affichées dans « À propos » (mêmes éléments que dans KDownloader).
+/// Coordonnées affichées dans « À propos ».
 enum Auteur {
     static let pseudo = "blckdvc"
     static let don = "https://paypal.me/lbenh"
@@ -105,7 +105,7 @@ private struct AboutButton: View {
     }
 }
 
-/// Même composition que le « À propos » de KDownloader : logo, nom et version,
+/// Fenêtre « À propos » : logo, nom et version,
 /// description, auteur, bouton de don, mentions des composants inclus.
 private struct AboutView: View {
     @Environment(\.dismiss) private var dismiss

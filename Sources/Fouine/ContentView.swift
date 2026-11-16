@@ -169,7 +169,7 @@ struct ContentView: View {
         .background(.background.secondary)
     }
 
-    /// Logo et nom en tête du panneau ; un clic ouvre « À propos », comme dans KDownloader.
+    /// Logo et nom en tête du panneau ; un clic ouvre « À propos ».
     private var brand: some View {
         Button { openWindow(id: "about") } label: {
             HStack(spacing: 9) {
