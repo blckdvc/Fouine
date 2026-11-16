@@ -1,7 +1,7 @@
 #!/bin/bash
 # Compile Fouine et assemble build/Fouine.app (Sparkle et traductions inclus).
-# Signature : IDENTITE="Nom du certificat" ./build.sh, sinon le premier certificat
-# de signature trouvé, sinon signature ad hoc (l'accès complet au disque sera alors
+# Signature : IDENTITE="Nom du certificat" ./build.sh, sinon le nom écrit dans le fichier
+# local .identite, sinon le premier certificat de signature trouvé, sinon signature ad hoc (l'accès complet au disque sera alors
 # à réaccorder après chaque recompilation).
 set -euo pipefail
 cd "$(dirname "$0")"
@@ -18,6 +18,7 @@ cp -R Resources/*.lproj "$APP/Contents/Resources/"
 cp Resources/AppIcon.icns Resources/*.png "$APP/Contents/Resources/"
 cp -R "$SPARKLE" "$APP/Contents/Frameworks/"
 
+[ -z "${IDENTITE:-}" ] && [ -f .identite ] && IDENTITE="$(head -1 .identite)"
 IDENTITE="${IDENTITE:-$(security find-identity -v -p codesigning | awk 'NR==1 && /^ *1\)/ {print $2}')}"
 IDENTITE="${IDENTITE:--}"
 # Sparkle se signe de l'intérieur vers l'extérieur, puis l'app.
